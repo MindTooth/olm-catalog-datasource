@@ -294,14 +294,29 @@ spec:
         readOnlyRootFilesystem: true
         capabilities:
           drop: ["ALL"]
+      # The listener is the startup and liveness signal. Catalog refreshes can
+      # take minutes, so they must not cause a container restart.
+      startupProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 2
+        timeoutSeconds: 1
+        failureThreshold: 30
       readinessProbe:
         httpGet:
           path: /readyz
           port: http
+        periodSeconds: 5
+        timeoutSeconds: 1
+        failureThreshold: 3
       livenessProbe:
         httpGet:
           path: /healthz
           port: http
+        periodSeconds: 10
+        timeoutSeconds: 1
+        failureThreshold: 3
       volumeMounts:
         - name: config
           mountPath: /etc/olm-catalog-datasource
@@ -345,6 +360,15 @@ writable paths must therefore work with an arbitrary non-root UID. The
 `emptyDir` volumes provide the writable `/tmp` and cache paths; ConfigMaps and
 Secrets remain read-only. `RuntimeDefault` seccomp, disabled privilege
 escalation, and dropped capabilities are explicit defense-in-depth settings.
+
+The probes intentionally have different meanings. The startup and liveness
+probes use `/healthz`, which succeeds whenever the HTTP listener is serving.
+The readiness probe uses `/readyz`, which stays `503` until at least one catalog
+has refreshed successfully. Kubernetes therefore keeps the pod out of Service
+endpoints while an initial catalog pull is in progress, without killing it for a
+slow registry or a transient refresh failure. The startup probe allows up to one
+minute for the process to bind its listener before liveness and readiness checks
+begin.
 
 For a long-running production deployment, replace the cache `emptyDir` with a
 PVC if preserving layer cache across pod replacement is important. Use a
