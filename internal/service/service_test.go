@@ -25,6 +25,31 @@ func TestResponseRecorderUsesFirstStatusAndCountsBytes(t *testing.T) {
 	}
 }
 
+func TestHealthAndReadinessEndpoints(t *testing.T) {
+	svc := New(Config{})
+
+	for _, test := range []struct {
+		path string
+		want int
+	}{
+		{path: "/healthz", want: http.StatusOK},
+		{path: "/readyz", want: http.StatusServiceUnavailable},
+	} {
+		res := httptest.NewRecorder()
+		svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, test.path, nil))
+		if res.Code != test.want {
+			t.Errorf("GET %s status = %d, want %d", test.path, res.Code, test.want)
+		}
+	}
+
+	svc.snapshots["catalog"] = &catalog.Snapshot{}
+	res := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if res.Code != http.StatusOK {
+		t.Errorf("GET /readyz after a successful refresh status = %d, want %d", res.Code, http.StatusOK)
+	}
+}
+
 func TestChannelInspectionEndpoint(t *testing.T) {
 	svc := New(Config{})
 	svc.snapshots["community-v4.20"] = &catalog.Snapshot{Packages: map[string]*catalog.Package{
