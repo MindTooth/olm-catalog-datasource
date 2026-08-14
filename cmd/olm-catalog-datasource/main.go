@@ -16,7 +16,7 @@ import (
 
 	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
 	"github.com/MindTooth/olm-catalog-datasource/internal/service"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 type fileConfig struct {

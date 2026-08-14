@@ -29,6 +29,20 @@ func TestSkipRange(t *testing.T) {
 	}
 }
 
+func TestSkipRangeIncludesPrerelease(t *testing.T) {
+	p := &Package{Name: "gitops", DefaultChannel: "stable", Bundles: map[string]*Bundle{
+		"v1": {Name: "v1", Version: "1.1.0-rc.1"},
+		"v2": {Name: "v2", Version: "2.0.0"},
+	}, Channels: map[string]*Channel{"stable": {Name: "stable", Entries: []Entry{{Name: "v1"}, {Name: "v2", SkipRange: ">=1.0.0 <2.0.0"}}}}}
+	got, err := p.VersionUpdates(UpdateRequest{CurrentVersion: "1.1.0-rc.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %#v", got)
+	}
+}
+
 func TestVersionUpdatesReturnsEmptyForVersionOutsideChannel(t *testing.T) {
 	p := &Package{Name: "strimzi", Bundles: map[string]*Bundle{
 		"v1": {Name: "v1", Version: "1.0.0"},

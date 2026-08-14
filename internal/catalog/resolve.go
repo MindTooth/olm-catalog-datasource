@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/blang/semver/v4"
+	"github.com/Masterminds/semver/v3"
 )
 
 // ErrNoUpdatePath means that the installed release has no entry in the
@@ -193,7 +193,7 @@ func nextChannelRelease(current string, candidates []ChannelRelease) []ChannelRe
 	if currentHasVersion {
 		for _, candidate := range candidates {
 			candidatePrefix, candidateVersion, candidateHasVersion := channelSuffix(candidate.Channel)
-			if candidateHasVersion && candidatePrefix == prefix && currentVersion.LT(candidateVersion) {
+			if candidateHasVersion && candidatePrefix == prefix && currentVersion.LessThan(candidateVersion) {
 				return []ChannelRelease{candidate}
 			}
 		}
@@ -207,10 +207,10 @@ func nextChannelRelease(current string, candidates []ChannelRelease) []ChannelRe
 }
 
 func bundleLess(a, b *Bundle) bool {
-	av, aerr := semver.Parse(a.Version)
-	bv, berr := semver.Parse(b.Version)
-	if aerr == nil && berr == nil && !av.EQ(bv) {
-		return av.LT(bv)
+	av, aerr := semver.StrictNewVersion(a.Version)
+	bv, berr := semver.StrictNewVersion(b.Version)
+	if aerr == nil && berr == nil && !av.Equal(bv) {
+		return av.LessThan(bv)
 	}
 	if aerr == nil && berr != nil {
 		return false
@@ -292,19 +292,25 @@ func rangeMatches(expr, version string) bool {
 	if expr == "" || version == "" {
 		return false
 	}
-	v, err := semver.Parse(version)
+	v, err := semver.StrictNewVersion(version)
 	if err != nil {
 		return false
 	}
-	r, err := semver.ParseRange(expr)
-	return err == nil && r(v)
+	r, err := semver.NewConstraint(expr)
+	if err != nil {
+		return false
+	}
+	// OLM skip ranges match semantic prereleases. Masterminds excludes them
+	// by default, so opt in to the established catalog behavior.
+	r.IncludePrerelease = true
+	return r.Check(v)
 }
 func sortVersions(xs []string) {
 	sort.Slice(xs, func(i, j int) bool {
-		a, ea := semver.Parse(xs[i])
-		b, eb := semver.Parse(xs[j])
+		a, ea := semver.StrictNewVersion(xs[i])
+		b, eb := semver.StrictNewVersion(xs[j])
 		if ea == nil && eb == nil {
-			return a.LT(b)
+			return a.LessThan(b)
 		}
 		if ea == nil {
 			return true
@@ -320,7 +326,7 @@ func channelLess(a, b string) bool {
 	pa, va, oka := channelSuffix(a)
 	pb, vb, okb := channelSuffix(b)
 	if oka && okb && pa == pb {
-		return va.LT(vb)
+		return va.LessThan(vb)
 	}
 	return a < b
 }
@@ -343,7 +349,7 @@ func channelCandidateLess(current, a, b string) bool {
 // falls back to lexical ordering for names without comparable suffixes.
 func ChannelLess(a, b string) bool { return channelLess(a, b) }
 
-func channelSuffix(s string) (string, semver.Version, bool) {
+func channelSuffix(s string) (string, *semver.Version, bool) {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] != '-' {
 			continue
@@ -354,16 +360,16 @@ func channelSuffix(s string) (string, semver.Version, bool) {
 		}
 		break
 	}
-	return "", semver.Version{}, false
+	return "", nil, false
 }
 
-func parseChannelVersion(value string) (semver.Version, bool) {
-	if version, err := semver.Parse(value); err == nil {
+func parseChannelVersion(value string) (*semver.Version, bool) {
+	if version, err := semver.StrictNewVersion(value); err == nil {
 		return version, true
 	}
 	parts := strings.Split(strings.ToLower(value), ".")
 	if len(parts) == 0 || len(parts) > 3 {
-		return semver.Version{}, false
+		return nil, false
 	}
 	for i, part := range parts {
 		if part == "x" || part == "*" {
@@ -373,6 +379,6 @@ func parseChannelVersion(value string) (semver.Version, bool) {
 	for len(parts) < 3 {
 		parts = append(parts, "0")
 	}
-	version, err := semver.Parse(strings.Join(parts, "."))
+	version, err := semver.StrictNewVersion(strings.Join(parts, "."))
 	return version, err == nil
 }
