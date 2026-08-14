@@ -122,13 +122,20 @@ asynchronous. A successful response means the work was accepted, not that a new
 snapshot is already available. Check the source's `/status` endpoint for
 `refreshing`, `lastSuccess`, and `lastError`.
 
+Both refresh endpoints are disabled until `refreshTokenFile` is configured.
+When enabled, callers must send the file's trimmed contents as a Bearer token.
+The token is read for every refresh request, so rotating a mounted Secret takes
+effect without restarting the service.
+
 ### `POST /v1/refresh`
 
 Queues every configured catalog. A source already queued or running is not
 duplicated.
 
 ```fish
-curl --fail-with-body -X POST http://localhost:8080/v1/refresh
+curl --fail-with-body -X POST \
+  -H "Authorization: Bearer $(cat ./refresh-token)" \
+  http://localhost:8080/v1/refresh
 ```
 
 Example response:
@@ -149,12 +156,15 @@ Queues one configured source. It returns `404` for an unknown source.
 
 ```fish
 curl --fail-with-body -X POST \
+  -H "Authorization: Bearer $(cat ./refresh-token)" \
   http://localhost:8080/v1/catalogs/redhat-v4.22/refresh
 ```
 
 The response is `202 Accepted` with `state` set to `queued` or `running`.
-Restrict these endpoints to trusted callers: they can cause registry traffic
-and substantial CPU and memory use.
+Requests with a missing or invalid token receive `401`; a missing or unreadable
+token file makes refresh control unavailable with `503`. Restrict these
+endpoints to trusted callers as a further layer of protection: they can cause
+registry traffic and substantial CPU and memory use.
 
 ## Package discovery
 

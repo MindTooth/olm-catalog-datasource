@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -21,6 +24,7 @@ type Config struct {
 	RefreshTimeout   time.Duration    `yaml:"refreshTimeout"`
 	SignaturePolicy  string           `yaml:"signaturePolicy"`
 	ParseConcurrency int              `yaml:"parseConcurrency"`
+	RefreshTokenFile string           `yaml:"refreshTokenFile"`
 }
 
 type SourceStatus struct {
@@ -343,6 +347,9 @@ func (s *Service) catalog(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		if !s.authorizeRefresh(w, r) {
+			return
+		}
 		s.refreshHTTP(w, r, parts[2])
 		return
 	}
@@ -401,6 +408,9 @@ func (s *Service) refreshAllHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.authorizeRefresh(w, r) {
+		return
+	}
 	s.mu.RLock()
 	ids := make([]string, 0, len(s.cfg.Sources))
 	for _, source := range s.cfg.Sources {
@@ -420,6 +430,44 @@ func (s *Service) refreshAllHTTP(w http.ResponseWriter, r *http.Request) {
 		Accepted bool       `json:"accepted"`
 		Sources  []accepted `json:"sources"`
 	}{Accepted: true, Sources: results})
+}
+
+// authorizeRefresh keeps the expensive refresh-control endpoints disabled
+// unless an administrator configures a token file. The token is read for each
+// request so a mounted Secret can rotate without restarting the service.
+func (s *Service) authorizeRefresh(w http.ResponseWriter, r *http.Request) bool {
+	s.mu.RLock()
+	tokenFile := s.cfg.RefreshTokenFile
+	s.mu.RUnlock()
+	if tokenFile == "" {
+		http.NotFound(w, r)
+		return false
+	}
+	token, err := os.ReadFile(tokenFile)
+	if err != nil {
+		slog.Error("read refresh token", "error", err)
+		http.Error(w, "refresh authentication is unavailable", http.StatusServiceUnavailable)
+		return false
+	}
+	token = []byte(strings.TrimSpace(string(token)))
+	if len(token) == 0 {
+		slog.Error("read refresh token", "error", "token file is empty")
+		http.Error(w, "refresh authentication is unavailable", http.StatusServiceUnavailable)
+		return false
+	}
+	scheme, credential, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") || credential == "" || !constantTimeEqual(token, []byte(credential)) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="refresh"`)
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
+
+func constantTimeEqual(expected, actual []byte) bool {
+	expectedHash := sha256.Sum256(expected)
+	actualHash := sha256.Sum256(actual)
+	return subtle.ConstantTimeCompare(expectedHash[:], actualHash[:]) == 1
 }
 
 func (s *Service) refreshHTTP(w http.ResponseWriter, _ *http.Request, sourceID string) {
