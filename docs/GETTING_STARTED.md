@@ -257,10 +257,12 @@ metadata:
   labels:
     app: olm-catalog-datasource
 spec:
+  # The service does not call the Kubernetes API.
+  automountServiceAccountToken: false
   securityContext:
     runAsNonRoot: true
-    runAsUser: 65532
-    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
   containers:
     - name: datasource
       image: registry.example/olm-catalog-datasource:tag
@@ -315,6 +317,14 @@ spec:
     - name: tmp
       emptyDir: {}
 ```
+
+This manifest is compatible with OpenShift's default `restricted-v2` SCC. Do
+not set `runAsUser` or `fsGroup` to a fixed value: OpenShift supplies values
+from the namespace's allocated UID and FSGroup ranges. The image and mounted
+writable paths must therefore work with an arbitrary non-root UID. The
+`emptyDir` volumes provide the writable `/tmp` and cache paths; ConfigMaps and
+Secrets remain read-only. `RuntimeDefault` seccomp, disabled privilege
+escalation, and dropped capabilities are explicit defense-in-depth settings.
 
 For a long-running production deployment, replace the cache `emptyDir` with a
 PVC if preserving layer cache across pod replacement is important. Use a
