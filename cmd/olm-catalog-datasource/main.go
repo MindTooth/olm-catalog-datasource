@@ -26,6 +26,7 @@ type fileConfig struct {
 	RefreshTimeout   string           `yaml:"refreshTimeout"`
 	SignaturePolicy  string           `yaml:"signaturePolicy"`
 	ParseConcurrency int              `yaml:"parseConcurrency"`
+	RefreshTokenFile string           `yaml:"refreshTokenFile"`
 	Sources          []catalog.Source `yaml:"sources"`
 }
 
@@ -104,7 +105,7 @@ func toService(c fileConfig) (service.Config, error) {
 		}
 		seen[source.ID] = true
 	}
-	return service.Config{Sources: c.Sources, RefreshInterval: interval, RefreshTimeout: timeout, SignaturePolicy: c.SignaturePolicy, ParseConcurrency: c.ParseConcurrency}, nil
+	return service.Config{Sources: c.Sources, RefreshInterval: interval, RefreshTimeout: timeout, SignaturePolicy: c.SignaturePolicy, ParseConcurrency: c.ParseConcurrency, RefreshTokenFile: c.RefreshTokenFile}, nil
 }
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)

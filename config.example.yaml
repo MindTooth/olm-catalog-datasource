@@ -4,6 +4,9 @@ listenAddress: ":8080"
 refreshInterval: 6h
 refreshTimeout: 30m
 parseConcurrency: 2
+# Refresh control endpoints are disabled unless this file is set. Mount it from
+# a Secret; callers send its value as an Authorization: Bearer token.
+# refreshTokenFile: /var/run/olm-refresh-token/token
 # Mount an explicit containers/image policy in production.
 # signaturePolicy: /etc/containers/policy.json
 sources:

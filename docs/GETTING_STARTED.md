@@ -103,6 +103,8 @@ refreshInterval: 6h
 refreshTimeout: 30m
 parseConcurrency: 2
 signaturePolicy: ./policy.json
+# Required to enable POST /v1/refresh endpoints.
+refreshTokenFile: ./refresh-token
 sources:
   - id: community-v4.22
     image: registry.redhat.io/redhat/community-operator-index:v4.22
@@ -111,6 +113,14 @@ sources:
 
 `id` is a stable local name used in API URLs. You can configure more than one
 catalog, including different OpenShift releases such as `v4.20` and `v4.22`.
+
+The refresh endpoints are disabled until `refreshTokenFile` is set. Generate a
+token, keep it out of source control, and restrict the file permissions:
+
+```fish
+openssl rand -base64 32 > refresh-token
+chmod 600 refresh-token
+```
 
 ### Apple Silicon and other non-Linux hosts
 
@@ -137,9 +147,10 @@ invalid change is logged and the last valid configuration and catalog snapshots
 remain active.
 
 Changes to `sources`, `refreshInterval`, `refreshTimeout`, `parseConcurrency`,
-and `signaturePolicy` take effect automatically. A new or changed source is
-queued for an immediate refresh. Changing `listenAddress` still requires a pod
-or process restart because the HTTP listener is already bound.
+`signaturePolicy`, and `refreshTokenFile` take effect automatically. A new or
+changed source is queued for an immediate refresh. Changing `listenAddress`
+still requires a pod or process restart because the HTTP listener is already
+bound.
 
 To tune the check period or turn it off:
 
@@ -167,15 +178,16 @@ source status to see whether it has completed:
 
 ```fish
 curl --fail-with-body -X POST \
+  -H "Authorization: Bearer $(cat ./refresh-token)" \
   http://localhost:8080/v1/catalogs/community-v4.22/refresh
 
 curl --fail-with-body \
   http://localhost:8080/v1/catalogs/community-v4.22/status
 ```
 
-Keep the refresh endpoint internal to the cluster or protect it with your
-ingress authentication and NetworkPolicy. It can initiate expensive registry
-pulls.
+The configured token is required for refresh calls. Keep the endpoint internal
+to the cluster or also protect it with ingress authentication and NetworkPolicy;
+it can initiate expensive registry pulls.
 
 Discover packages:
 
@@ -232,6 +244,7 @@ Create external objects before the workload:
 
 - a ConfigMap holding `config.yaml`;
 - a Secret holding the registry `auth.json`;
+- a Secret holding the refresh token;
 - a ConfigMap or Secret holding the signature `policy.json`;
 - an `emptyDir` for `/tmp` and a PVC or `emptyDir` for the cache.
 
@@ -241,6 +254,7 @@ Example commands (adapt names and namespaces):
 kubectl create configmap olm-catalog-config --from-file=config.yaml
 kubectl create configmap olm-catalog-policy --from-file=policy.json
 kubectl create secret generic olm-registry-auth --from-file=auth.json=/path/to/auth.json
+kubectl create secret generic olm-refresh-token --from-file=token=./refresh-token
 ```
 
 Use a Secret rather than a ConfigMap for any policy file that contains private
@@ -298,6 +312,9 @@ spec:
         - name: registry-auth
           mountPath: /var/run/registry-auth
           readOnly: true
+        - name: refresh-token
+          mountPath: /var/run/olm-refresh-token
+          readOnly: true
         - name: cache
           mountPath: /var/cache/olm
         - name: tmp
@@ -312,6 +329,9 @@ spec:
     - name: registry-auth
       secret:
         secretName: olm-registry-auth
+    - name: refresh-token
+      secret:
+        secretName: olm-refresh-token
     - name: cache
       emptyDir: {}
     - name: tmp

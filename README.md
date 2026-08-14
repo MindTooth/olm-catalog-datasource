@@ -30,6 +30,8 @@ listenAddress: ":8080"
 refreshInterval: 6h
 refreshTimeout: 30m
 parseConcurrency: 2
+# POST refresh endpoints are disabled without a token file.
+# refreshTokenFile: /var/run/olm-refresh-token/token
 # Mount an explicit containers/image policy in production.
 # signaturePolicy: /etc/containers/policy.json
 sources:
@@ -172,10 +174,12 @@ inspect a channel transition.
 
 ## Security
 
-Use a mounted authentication file and an explicit containers/image signature
-policy. The service does not disable TLS verification or accept unsigned images
-by default. Do not expose it as an arbitrary image proxy: the HTTP API can query
-only configured source IDs.
+Use a mounted registry-authentication file, an explicit containers/image
+signature policy, and a refresh-token file. Refresh endpoints are disabled
+until `refreshTokenFile` is configured; callers must then send its contents as
+an `Authorization: Bearer` token. The service does not disable TLS verification
+or accept unsigned images by default. Do not expose it as an arbitrary image
+proxy: the HTTP API can query only configured source IDs.
 
 ## Limitations
 

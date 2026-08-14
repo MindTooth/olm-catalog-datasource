@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
@@ -71,10 +73,15 @@ func TestCatalogStatusEndpoint(t *testing.T) {
 
 func TestRefreshEndpointsQueueConfiguredSources(t *testing.T) {
 	source := catalog.Source{ID: "test", Image: ""}
-	svc := New(Config{Sources: []catalog.Source{source}})
+	tokenFile := filepath.Join(t.TempDir(), "refresh-token")
+	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tokenFile})
 
 	for _, target := range []string{"/v1/refresh", "/v1/catalogs/test/refresh"} {
 		req := httptest.NewRequest(http.MethodPost, target, nil)
+		req.Header.Set("Authorization", "Bearer test-token")
 		res := httptest.NewRecorder()
 		svc.Handler().ServeHTTP(res, req)
 		if res.Code != http.StatusAccepted {
@@ -96,6 +103,71 @@ func TestRefreshEndpointsQueueConfiguredSources(t *testing.T) {
 	svc.Handler().ServeHTTP(res, req)
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("missing source status = %d, want %d", res.Code, http.StatusNotFound)
+	}
+}
+
+func TestRefreshEndpointsRequireConfiguredBearerToken(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "refresh-token")
+	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	source := catalog.Source{ID: "test"}
+	cases := []struct {
+		name       string
+		tokenFile  string
+		authority  string
+		wantStatus int
+	}{
+		{name: "disabled", wantStatus: http.StatusNotFound},
+		{name: "unavailable token file", tokenFile: filepath.Join(t.TempDir(), "missing-token"), wantStatus: http.StatusServiceUnavailable},
+		{name: "missing token", tokenFile: tokenFile, wantStatus: http.StatusUnauthorized},
+		{name: "invalid token", tokenFile: tokenFile, authority: "Bearer wrong", wantStatus: http.StatusUnauthorized},
+		{name: "wrong scheme", tokenFile: tokenFile, authority: "Basic test-token", wantStatus: http.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tc.tokenFile})
+			for _, target := range []string{"/v1/refresh", "/v1/catalogs/test/refresh"} {
+				req := httptest.NewRequest(http.MethodPost, target, nil)
+				if tc.authority != "" {
+					req.Header.Set("Authorization", tc.authority)
+				}
+				res := httptest.NewRecorder()
+				svc.Handler().ServeHTTP(res, req)
+				if res.Code != tc.wantStatus {
+					t.Fatalf("POST %s status = %d, want %d; body = %s", target, res.Code, tc.wantStatus, res.Body.String())
+				}
+			}
+		})
+	}
+}
+
+func TestRefreshTokenCanRotateWithoutReload(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "refresh-token")
+	if err := os.WriteFile(tokenFile, []byte("first-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(Config{RefreshTokenFile: tokenFile})
+
+	for _, token := range []string{"first-token", "second-token"} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/refresh", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		res := httptest.NewRecorder()
+		if !svc.authorizeRefresh(res, req) {
+			t.Fatalf("token %q was rejected: %d %s", token, res.Code, res.Body.String())
+		}
+		if token == "first-token" {
+			if err := os.WriteFile(tokenFile, []byte("second-token\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/refresh", nil)
+	req.Header.Set("Authorization", "Bearer first-token")
+	res := httptest.NewRecorder()
+	if svc.authorizeRefresh(res, req) || res.Code != http.StatusUnauthorized {
+		t.Fatalf("previous token status = %d, want %d", res.Code, http.StatusUnauthorized)
 	}
 }
 
