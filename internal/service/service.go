@@ -347,6 +347,10 @@ func (s *Service) catalog(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		if !s.hasSource(parts[2]) {
+			http.NotFound(w, r)
+			return
+		}
 		if !s.authorizeRefresh(w, r) {
 			return
 		}
@@ -481,6 +485,13 @@ func (s *Service) refreshHTTP(w http.ResponseWriter, _ *http.Request, sourceID s
 		Source   string `json:"source"`
 		State    string `json:"state"`
 	}{Accepted: true, Source: sourceID, State: state})
+}
+
+func (s *Service) hasSource(id string) bool {
+	s.mu.RLock()
+	_, found := s.sourceLocked(id)
+	s.mu.RUnlock()
+	return found
 }
 
 func (s *Service) snapshot(w http.ResponseWriter, sourceID string) *catalog.Snapshot {
