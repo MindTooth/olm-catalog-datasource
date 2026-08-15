@@ -283,7 +283,7 @@ Parameters:
 curl --fail-with-body --get \
   http://localhost:8080/v1/catalogs/community-v4.22/packages/strimzi-kafka-operator/updates \
   --data-urlencode 'channel=strimzi-1.x' \
-  --data-urlencode 'currentVersion=0.47.0' \
+  --data-urlencode 'currentVersion=1.0.0' \
   --data-urlencode 'mode=reachable'
 ```
 
@@ -312,7 +312,7 @@ Parameters:
 curl --fail-with-body --get \
   http://localhost:8080/v1/catalogs/community-v4.22/packages/strimzi-kafka-operator/channel-updates \
   --data-urlencode 'currentChannel=strimzi-1.x' \
-  --data-urlencode 'currentVersion=0.47.0' \
+  --data-urlencode 'currentVersion=1.0.0' \
   --data-urlencode 'selection=next'
 ```
 
@@ -505,7 +505,7 @@ Resolve bundle-version updates:
 curl --fail-with-body --get \
   http://localhost:8080/v1/catalogs/community-v4.22/packages/strimzi-kafka-operator/resolve \
   --data-urlencode 'channel=strimzi-1.x' \
-  --data-urlencode 'currentVersion=0.47.0' \
+  --data-urlencode 'currentVersion=1.0.0' \
   --data-urlencode 'mode=reachable'
 ```
 
@@ -516,7 +516,7 @@ curl --fail-with-body --get \
   http://localhost:8080/v1/catalogs/community-v4.22/packages/strimzi-kafka-operator/resolve \
   --data-urlencode 'kind=channel' \
   --data-urlencode 'currentChannel=strimzi-1.x' \
-  --data-urlencode 'currentVersion=0.47.0' \
+  --data-urlencode 'currentVersion=1.0.0' \
   --data-urlencode 'selection=next'
 ```
 

@@ -203,7 +203,7 @@ Query an upgrade path:
 curl --fail-with-body --get \
   http://localhost:8080/v1/catalogs/community-v4.22/packages/strimzi-kafka-operator/updates \
   --data-urlencode 'channel=strimzi-1.x' \
-  --data-urlencode 'currentVersion=0.47.0' \
+  --data-urlencode 'currentVersion=1.0.0' \
   --data-urlencode 'mode=reachable'
 ```
 
