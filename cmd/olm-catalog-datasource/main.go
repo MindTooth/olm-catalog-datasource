@@ -20,14 +20,16 @@ import (
 )
 
 type fileConfig struct {
-	ListenAddress    string           `yaml:"listenAddress"`
-	Debug            bool             `yaml:"debug"`
-	RefreshInterval  string           `yaml:"refreshInterval"`
-	RefreshTimeout   string           `yaml:"refreshTimeout"`
-	SignaturePolicy  string           `yaml:"signaturePolicy"`
-	ParseConcurrency int              `yaml:"parseConcurrency"`
-	RefreshTokenFile string           `yaml:"refreshTokenFile"`
-	Sources          []catalog.Source `yaml:"sources"`
+	ListenAddress     string           `yaml:"listenAddress"`
+	Debug             bool             `yaml:"debug"`
+	RefreshInterval   string           `yaml:"refreshInterval"`
+	RefreshTimeout    string           `yaml:"refreshTimeout"`
+	SignaturePolicy   string           `yaml:"signaturePolicy"`
+	ParseConcurrency  int              `yaml:"parseConcurrency"`
+	RefreshTokenFile  string           `yaml:"refreshTokenFile"`
+	OpenShiftGraphURL string           `yaml:"openshiftGraphURL"`
+	OpenShiftTimeout  string           `yaml:"openshiftTimeout"`
+	Sources           []catalog.Source `yaml:"sources"`
 }
 
 func main() {
@@ -82,6 +84,7 @@ func parseConfig(b []byte) (fileConfig, error) {
 func toService(c fileConfig) (service.Config, error) {
 	interval := 6 * time.Hour
 	timeout := 30 * time.Minute
+	openshiftTimeout := 30 * time.Second
 	var err error
 	if c.RefreshInterval != "" {
 		interval, err = time.ParseDuration(c.RefreshInterval)
@@ -91,6 +94,12 @@ func toService(c fileConfig) (service.Config, error) {
 	}
 	if c.RefreshTimeout != "" {
 		timeout, err = time.ParseDuration(c.RefreshTimeout)
+		if err != nil {
+			return service.Config{}, err
+		}
+	}
+	if c.OpenShiftTimeout != "" {
+		openshiftTimeout, err = time.ParseDuration(c.OpenShiftTimeout)
 		if err != nil {
 			return service.Config{}, err
 		}
@@ -105,7 +114,7 @@ func toService(c fileConfig) (service.Config, error) {
 		}
 		seen[source.ID] = true
 	}
-	return service.Config{Sources: c.Sources, RefreshInterval: interval, RefreshTimeout: timeout, SignaturePolicy: c.SignaturePolicy, ParseConcurrency: c.ParseConcurrency, RefreshTokenFile: c.RefreshTokenFile}, nil
+	return service.Config{Sources: c.Sources, RefreshInterval: interval, RefreshTimeout: timeout, SignaturePolicy: c.SignaturePolicy, ParseConcurrency: c.ParseConcurrency, RefreshTokenFile: c.RefreshTokenFile, OpenShiftGraphURL: c.OpenShiftGraphURL, OpenShiftTimeout: openshiftTimeout}, nil
 }
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)

@@ -201,6 +201,69 @@ format:
 {"releases":[{"version":"value"}]}
 ```
 
+### `GET /v1/openshift-releases/{channel}/updates`
+
+Returns the installed OpenShift cluster release and only the releases connected
+to it by a direct, unconditional edge in Red Hat's update graph. Conditional
+edges are excluded because evaluating their risks requires cluster state.
+
+Parameters:
+
+| Parameter | Required | Meaning |
+| --- | --- | --- |
+| `currentVersion` | yes | Installed OpenShift version. |
+| `arch` | no | Update-graph architecture. Defaults to `multi`. |
+| `lag` | no | Non-negative number of newest direct successors to omit. Defaults to `0`; the installed release is always retained. |
+
+```fish
+curl --fail-with-body --get \
+  http://localhost:8080/v1/openshift-releases/stable-4.21/updates \
+  --data-urlencode 'currentVersion=4.21.21' \
+  --data-urlencode 'arch=multi' \
+  --data-urlencode 'lag=1'
+```
+
+Example response:
+
+```json
+{
+  "releases": [
+    {
+      "version": "4.21.21",
+      "changelogUrl": "https://access.redhat.com/errata/RHBA-...",
+      "digest": "quay.io/openshift-release-dev/ocp-release@sha256:..."
+    },
+    {
+      "version": "4.21.22",
+      "changelogUrl": "https://access.redhat.com/errata/RHSA-...",
+      "digest": "quay.io/openshift-release-dev/ocp-release@sha256:..."
+    }
+  ],
+  "sourceUrl": "https://multi.ocp.releases.ci.openshift.org",
+  "homepage": "https://www.openshift.com"
+}
+```
+
+An absent `currentVersion` returns an empty release list because the graph does
+not declare a valid path from that state. Invalid parameters return `400`; an
+upstream graph failure returns `502`.
+
+Renovate configuration:
+
+```json
+{
+  "customDatasources": {
+    "openshift-releases": {
+      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource:8080/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
+      "format": "json"
+    }
+  }
+}
+```
+
+Use the OpenShift channel, such as `stable-4.21`, as the dependency's
+`packageName` and configure Renovate with `semver` versioning.
+
 ### `GET /v1/catalogs/{source}/packages/{package}/updates`
 
 Returns bundle versions reachable from the installed bundle through declared

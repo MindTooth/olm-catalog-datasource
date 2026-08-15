@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,15 +17,18 @@ import (
 	"time"
 
 	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
+	"github.com/MindTooth/olm-catalog-datasource/internal/openshift"
 )
 
 type Config struct {
-	Sources          []catalog.Source `yaml:"sources"`
-	RefreshInterval  time.Duration    `yaml:"refreshInterval"`
-	RefreshTimeout   time.Duration    `yaml:"refreshTimeout"`
-	SignaturePolicy  string           `yaml:"signaturePolicy"`
-	ParseConcurrency int              `yaml:"parseConcurrency"`
-	RefreshTokenFile string           `yaml:"refreshTokenFile"`
+	Sources           []catalog.Source `yaml:"sources"`
+	RefreshInterval   time.Duration    `yaml:"refreshInterval"`
+	RefreshTimeout    time.Duration    `yaml:"refreshTimeout"`
+	SignaturePolicy   string           `yaml:"signaturePolicy"`
+	ParseConcurrency  int              `yaml:"parseConcurrency"`
+	RefreshTokenFile  string           `yaml:"refreshTokenFile"`
+	OpenShiftGraphURL string           `yaml:"openshiftGraphURL"`
+	OpenShiftTimeout  time.Duration    `yaml:"openshiftTimeout"`
 }
 
 type SourceStatus struct {
@@ -45,6 +49,7 @@ type Service struct {
 	queued        map[string]bool
 	running       map[string]bool
 	refreshSem    chan struct{}
+	httpClient    *http.Client
 	runContext    context.Context
 	configChanged chan struct{}
 }
@@ -57,6 +62,7 @@ func New(cfg Config) *Service {
 		queued:        map[string]bool{},
 		running:       map[string]bool{},
 		refreshSem:    make(chan struct{}, 1),
+		httpClient:    http.DefaultClient,
 		configChanged: make(chan struct{}, 1),
 	}
 }
@@ -321,7 +327,72 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/v1/refresh", s.refreshAllHTTP)
 	mux.HandleFunc("/v1/catalogs", s.catalog)
 	mux.HandleFunc("/v1/catalogs/", s.catalog)
+	mux.HandleFunc("/v1/openshift-releases/", s.openshiftReleases)
 	return accessLog(mux)
+}
+
+func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(path.Clean(r.URL.Path), "/"), "/")
+	if len(parts) != 4 || parts[0] != "v1" || parts[1] != "openshift-releases" || parts[3] != "updates" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	lag := 0
+	if value := r.URL.Query().Get("lag"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			http.Error(w, "lag must be a non-negative integer", http.StatusBadRequest)
+			return
+		}
+		lag = parsed
+	}
+	architecture := r.URL.Query().Get("arch")
+	if architecture == "" {
+		architecture = "multi"
+	}
+	currentVersion := r.URL.Query().Get("currentVersion")
+	if currentVersion == "" {
+		http.Error(w, "currentVersion is required", http.StatusBadRequest)
+		return
+	}
+
+	s.mu.RLock()
+	graphURL, timeout, httpClient := s.cfg.OpenShiftGraphURL, s.cfg.OpenShiftTimeout, s.httpClient
+	s.mu.RUnlock()
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+	values, err := (openshift.Client{GraphURL: graphURL, HTTPClient: httpClient}).Updates(ctx, openshift.UpdateRequest{
+		Channel:        parts[2],
+		Architecture:   architecture,
+		CurrentVersion: currentVersion,
+		Lag:            lag,
+	})
+	if errors.Is(err, openshift.ErrCurrentVersionNotFound) {
+		values = []openshift.Release{}
+	} else if err != nil {
+		slog.Error("resolve OpenShift releases", "channel", parts[2], "architecture", architecture, "error", err)
+		http.Error(w, "OpenShift update graph is unavailable", http.StatusBadGateway)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, struct {
+		Releases  []openshift.Release `json:"releases"`
+		SourceURL string              `json:"sourceUrl"`
+		Homepage  string              `json:"homepage"`
+	}{
+		Releases:  values,
+		SourceURL: "https://" + architecture + ".ocp.releases.ci.openshift.org",
+		Homepage:  "https://openshift.com",
+	})
 }
 
 func (s *Service) ready(w http.ResponseWriter, _ *http.Request) {
