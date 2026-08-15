@@ -391,7 +391,7 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 	}{
 		Releases:  values,
 		SourceURL: "https://" + architecture + ".ocp.releases.ci.openshift.org",
-		Homepage:  "https://www.openshift.com",
+		Homepage:  "https://openshift.com",
 	})
 }
 
