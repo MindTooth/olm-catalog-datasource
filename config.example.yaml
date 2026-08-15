@@ -1,3 +1,4 @@
+---
 listenAddress: ":8080"
 # Set true to include query strings and user agents in request logs.
 # debug: true
@@ -14,11 +15,11 @@ parseConcurrency: 2
 # Mount an explicit containers/image policy in production.
 # signaturePolicy: /etc/containers/policy.json
 sources:
-- id: redhat-v4.20
-  image: registry.redhat.io/redhat/redhat-operator-index:v4.20
-  # Override the image platform when testing a Linux-only catalog from macOS.
-  # platform: linux/amd64
-- id: certified-v4.22
-  image: registry.redhat.io/redhat/certified-operator-index:v4.22
-- id: community-v4.22
-  image: registry.redhat.io/redhat/community-operator-index:v4.22
+  - id: redhat-v4.20
+    image: registry.redhat.io/redhat/redhat-operator-index:v4.22
+    # Override the image platform when testing a Linux-only catalog from macOS.
+    # platform: linux/amd64
+  - id: certified-v4.22
+    image: registry.redhat.io/redhat/certified-operator-index:v4.22
+  - id: community-v4.22
+    image: registry.redhat.io/redhat/community-operator-index:v4.22
