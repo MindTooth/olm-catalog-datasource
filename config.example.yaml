@@ -15,7 +15,7 @@ parseConcurrency: 2
 # Mount an explicit containers/image policy in production.
 # signaturePolicy: /etc/containers/policy.json
 sources:
-  - id: redhat-v4.20
+  - id: redhat-v4.22
     image: registry.redhat.io/redhat/redhat-operator-index:v4.22
     # Override the image platform when testing a Linux-only catalog from macOS.
     # platform: linux/amd64
