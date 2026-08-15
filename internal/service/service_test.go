@@ -93,7 +93,7 @@ func TestOpenShiftReleasesEndpoint(t *testing.T) {
 	if body.Releases[1].ChangelogURL != "https://example.com/22" || body.Releases[1].Digest != "quay.io/ocp@sha256:22" {
 		t.Fatalf("unexpected target metadata: %#v", body.Releases[1])
 	}
-	if body.SourceURL != "https://multi.ocp.releases.ci.openshift.org" || body.Homepage != "https://www.openshift.com" {
+	if body.SourceURL != "https://multi.ocp.releases.ci.openshift.org" || body.Homepage != "https://openshift.com" {
 		t.Fatalf("unexpected source metadata: %#v", body)
 	}
 }
