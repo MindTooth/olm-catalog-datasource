@@ -1,9 +1,10 @@
 # OLM catalog datasource
 
-`olm-catalog-datasource` is a native Go service for exposing OpenShift file-based
-operator catalog updates to Renovate. It pulls catalog images through the upstream
-Operator Framework image libraries; it does not execute `opm`, `oc-mirror`, or a
-container client.
+`olm-catalog-datasource` is a native Go service for exposing OpenShift cluster
+releases and file-based operator catalog updates to Renovate. Cluster releases
+come from the official OpenShift update graph. Operator catalogs are pulled
+through the upstream Operator Framework image libraries; the service does not
+execute `opm`, `oc-mirror`, or a container client.
 
 Start with [the getting-started guide](docs/GETTING_STARTED.md) for local,
 container, and pod deployment instructions, including registry authentication
@@ -16,10 +17,11 @@ newer catalog version as an upgrade.
 
 ## Status
 
-This initial implementation supports native catalog refresh, graph-filtered
-bundle-version responses, and graph-validated channel transitions. A channel
-update needs the installed bundle identity or an unambiguous installed version;
-the service deliberately refuses to guess.
+This initial implementation supports direct OpenShift cluster-release updates,
+native catalog refresh, graph-filtered bundle-version responses, and
+graph-validated channel transitions. A channel update needs the installed
+bundle identity or an unambiguous installed version; the service deliberately
+refuses to guess.
 
 ## Configuration
 
@@ -30,6 +32,9 @@ listenAddress: ":8080"
 refreshInterval: 6h
 refreshTimeout: 30m
 parseConcurrency: 2
+# Optional override for testing or a trusted update-graph mirror.
+# openshiftGraphURL: https://api.openshift.com/api/upgrades_info/v1/graph
+# openshiftTimeout: 30s
 # POST refresh endpoints are disabled without a token file.
 # refreshTokenFile: /var/run/olm-refresh-token/token
 # Mount an explicit containers/image policy in production.
@@ -112,6 +117,25 @@ If the installed release is not in the requested channel, the service returns
 it is not a catalog error.
 
 ## Renovate
+
+OpenShift cluster releases require only a channel and the installed version:
+
+```json
+{
+  "customDatasources": {
+    "openshift-releases": {
+      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
+      "format": "json"
+    }
+  }
+}
+```
+
+Use the channel, for example `stable-4.21`, as `packageName`. The response
+contains the installed release and only its direct unconditional successors.
+`lag=1` withholds the newest successor; the installed release is never removed.
+
+Operator catalog releases use the catalog endpoints:
 
 ```json
 {

@@ -52,6 +52,73 @@ func TestHealthAndReadinessEndpoints(t *testing.T) {
 	}
 }
 
+func TestOpenShiftReleasesEndpoint(t *testing.T) {
+	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("channel") != "stable-4.21" || r.URL.Query().Get("arch") != "multi" {
+			t.Errorf("unexpected graph query: %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{
+			"nodes": [
+				{"version":"4.21.21","metadata":{"url":"https://example.com/21","io.openshift.upgrades.graph.release.manifestref":"quay.io/ocp@sha256:21"}},
+				{"version":"4.21.22","metadata":{"url":"https://example.com/22","io.openshift.upgrades.graph.release.manifestref":"quay.io/ocp@sha256:22"}},
+				{"version":"4.21.23","metadata":{"url":"https://example.com/23","io.openshift.upgrades.graph.release.manifestref":"quay.io/ocp@sha256:23"}}
+			],
+			"edges": [[0,1],[0,2]]
+		}`))
+	}))
+	t.Cleanup(graph.Close)
+	svc := New(Config{OpenShiftGraphURL: graph.URL})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/openshift-releases/stable-4.21/updates?currentVersion=4.21.21&lag=1", nil)
+	res := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Releases []struct {
+			Version      string `json:"version"`
+			ChangelogURL string `json:"changelogUrl"`
+			Digest       string `json:"digest"`
+		} `json:"releases"`
+		SourceURL string `json:"sourceUrl"`
+		Homepage  string `json:"homepage"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Releases) != 2 || body.Releases[0].Version != "4.21.21" || body.Releases[1].Version != "4.21.22" {
+		t.Fatalf("unexpected releases: %#v", body.Releases)
+	}
+	if body.Releases[1].ChangelogURL != "https://example.com/22" || body.Releases[1].Digest != "quay.io/ocp@sha256:22" {
+		t.Fatalf("unexpected target metadata: %#v", body.Releases[1])
+	}
+	if body.SourceURL != "https://multi.ocp.releases.ci.openshift.org" || body.Homepage != "https://www.openshift.com" {
+		t.Fatalf("unexpected source metadata: %#v", body)
+	}
+}
+
+func TestOpenShiftReleasesEndpointValidation(t *testing.T) {
+	svc := New(Config{})
+	for _, tc := range []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{method: http.MethodGet, path: "/v1/openshift-releases/stable-4.21/updates", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/v1/openshift-releases/stable-4.21/updates?currentVersion=4.21.21&lag=-1", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/v1/openshift-releases/stable-4.21/updates?currentVersion=4.21.21&lag=tomorrow", want: http.StatusBadRequest},
+		{method: http.MethodPost, path: "/v1/openshift-releases/stable-4.21/updates?currentVersion=4.21.21", want: http.StatusMethodNotAllowed},
+		{method: http.MethodGet, path: "/v1/openshift-releases/stable-4.21/missing?currentVersion=4.21.21", want: http.StatusNotFound},
+	} {
+		res := httptest.NewRecorder()
+		svc.Handler().ServeHTTP(res, httptest.NewRequest(tc.method, tc.path, nil))
+		if res.Code != tc.want {
+			t.Errorf("%s %s status = %d, want %d", tc.method, tc.path, res.Code, tc.want)
+		}
+	}
+}
+
 func TestChannelInspectionEndpoint(t *testing.T) {
 	svc := New(Config{})
 	svc.snapshots["community-v4.20"] = &catalog.Snapshot{Packages: map[string]*catalog.Package{

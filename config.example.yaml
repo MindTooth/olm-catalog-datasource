@@ -4,6 +4,10 @@ listenAddress: ":8080"
 refreshInterval: 6h
 refreshTimeout: 30m
 parseConcurrency: 2
+# OpenShift cluster-release lookups use the official update graph. Override the
+# URL only for testing or an explicitly trusted mirror.
+# openshiftGraphURL: https://api.openshift.com/api/upgrades_info/v1/graph
+# openshiftTimeout: 30s
 # Refresh control endpoints are disabled unless this file is set. Mount it from
 # a Secret; callers send its value as an Authorization: Bearer token.
 # refreshTokenFile: /var/run/olm-refresh-token/token
