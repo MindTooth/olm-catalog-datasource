@@ -3,5 +3,5 @@
 
   "extends": ["github>MindTooth/renovate-default-preset"],
 
-  "enabledManagers": ["dockerfile", "gomod"]
+  "enabledManagers": ["dockerfile", "github-actions", "gomod", "npm"]
 }
