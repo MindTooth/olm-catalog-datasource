@@ -1,6 +1,21 @@
 {{- if .Values.pdb.enabled }}
-{{- if lt (int .Values.replicaCount) 2 }}
+{{- $replicas := int .Values.replicaCount }}
+{{- if lt $replicas 2 }}
 {{- fail "pdb.enabled requires replicaCount >= 2" }}
+{{- end }}
+{{- $maxUnavailable := toString .Values.pdb.maxUnavailable }}
+{{- if regexMatch "^[0-9]+%$" $maxUnavailable }}
+{{- $percent := int (trimSuffix "%" $maxUnavailable) }}
+{{- $unavailable := div (add (mul $replicas $percent) 99) 100 }}
+{{- if ge $unavailable $replicas }}
+{{- fail "pdb.maxUnavailable must leave at least one replica available" }}
+{{- end }}
+{{- else if regexMatch "^[0-9]+$" $maxUnavailable }}
+{{- if ge (int $maxUnavailable) $replicas }}
+{{- fail "pdb.maxUnavailable must be less than replicaCount" }}
+{{- end }}
+{{- else }}
+{{- fail "pdb.maxUnavailable must be a non-negative integer or percentage" }}
 {{- end }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget

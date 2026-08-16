@@ -8,7 +8,7 @@ Create a registry authentication Secret and a ConfigMap or Secret containing the
 
 ## Install
 
-    helm upgrade --install olm-catalog-datasource charts/olm-catalog-datasource -f values-openshift.yaml
+    helm upgrade --install olm-catalog-datasource charts/olm-catalog-datasource -f charts/olm-catalog-datasource/values-openshift.yaml
 
 `values-openshift.yaml` must set a released application image, at least one catalog source, and the existing policy object. Registry auth and refresh-token Secrets are optional references.
 
