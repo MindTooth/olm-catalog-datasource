@@ -84,6 +84,9 @@
     },
     "signaturePolicy": {
       "type": "object",
+      "required": [
+        "key"
+      ],
       "properties": {
         "existingConfigMap": {
           "type": "string"
@@ -96,7 +99,7 @@
           "minLength": 1
         }
       },
-      "anyOf": [
+      "oneOf": [
         {
           "required": [
             "existingConfigMap"
@@ -104,6 +107,9 @@
           "properties": {
             "existingConfigMap": {
               "minLength": 1
+            },
+            "existingSecret": {
+              "maxLength": 0
             }
           }
         },
@@ -112,6 +118,9 @@
             "existingSecret"
           ],
           "properties": {
+            "existingConfigMap": {
+              "maxLength": 0
+            },
             "existingSecret": {
               "minLength": 1
             }
@@ -133,10 +142,42 @@
         "enabled": {
           "type": "boolean"
         },
+        "existingClaim": {
+          "type": "string"
+        },
         "size": {
           "type": "string"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "enabled"
+            ],
+            "properties": {
+              "enabled": {
+                "const": true
+              },
+              "existingClaim": {
+                "maxLength": 0
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "size"
+            ],
+            "properties": {
+              "size": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+|(?:Ki|Mi|Gi|Ti|Pi|Ei)|[kMGTPE]|m)?$"
+              }
+            }
+          }
+        }
+      ]
     },
     "pdb": {
       "type": "object",
