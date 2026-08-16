@@ -1,0 +1,17 @@
+{{- if .Values.pdb.enabled }}
+{{- if lt (int .Values.replicaCount) 2 }}
+{{- fail "pdb.enabled requires replicaCount >= 2" }}
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "olm-catalog-datasource.fullname" . }}
+  labels:
+    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "olm-catalog-datasource.selectorLabels" . | nindent 6 }}
+{{- end }}
