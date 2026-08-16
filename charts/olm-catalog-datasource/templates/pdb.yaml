@@ -1,0 +1,32 @@
+{{- if .Values.pdb.enabled }}
+{{- $replicas := int .Values.replicaCount }}
+{{- if lt $replicas 2 }}
+{{- fail "pdb.enabled requires replicaCount >= 2" }}
+{{- end }}
+{{- $maxUnavailable := toString .Values.pdb.maxUnavailable }}
+{{- if regexMatch "^[0-9]+%$" $maxUnavailable }}
+{{- $percent := int (trimSuffix "%" $maxUnavailable) }}
+{{- $unavailable := div (add (mul $replicas $percent) 99) 100 }}
+{{- if ge $unavailable $replicas }}
+{{- fail "pdb.maxUnavailable must leave at least one replica available" }}
+{{- end }}
+{{- else if regexMatch "^[0-9]+$" $maxUnavailable }}
+{{- if ge (int $maxUnavailable) $replicas }}
+{{- fail "pdb.maxUnavailable must be less than replicaCount" }}
+{{- end }}
+{{- else }}
+{{- fail "pdb.maxUnavailable must be a non-negative integer or percentage" }}
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "olm-catalog-datasource.fullname" . }}
+  labels:
+    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "olm-catalog-datasource.selectorLabels" . | nindent 6 }}
+{{- end }}
