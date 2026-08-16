@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "olm-catalog-datasource.fullname" . }}
+  labels:
+    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "olm-catalog-datasource.selectorLabels" . | nindent 4 }}

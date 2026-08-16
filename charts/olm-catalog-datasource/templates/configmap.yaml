@@ -1,0 +1,29 @@
+{{- if not (or .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret) }}
+{{- fail "signaturePolicy.existingConfigMap or signaturePolicy.existingSecret is required" }}
+{{- end }}
+{{- if and .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret }}
+{{- fail "configure only one signature policy source" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "olm-catalog-datasource.fullname" . }}
+  labels:
+    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    listenAddress: ":{{ .Values.service.port }}"
+    debug: {{ .Values.config.debug }}
+    refreshInterval: {{ .Values.config.refreshInterval | quote }}
+    refreshTimeout: {{ .Values.config.refreshTimeout | quote }}
+    parseConcurrency: {{ .Values.config.parseConcurrency }}
+    openshiftTimeout: {{ .Values.config.openshiftTimeout | quote }}
+    signaturePolicy: /etc/containers/{{ .Values.signaturePolicy.key }}
+    {{- with .Values.config.openshiftGraphURL }}
+    openshiftGraphURL: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.refreshToken.existingSecret }}
+    refreshTokenFile: /var/run/olm-refresh-token/{{ $.Values.refreshToken.key }}
+    {{- end }}
+    sources:
+{{ toYaml .Values.config.sources | indent 6 }}

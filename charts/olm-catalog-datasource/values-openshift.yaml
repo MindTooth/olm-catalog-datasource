@@ -1,0 +1,20 @@
+image:
+  repository: registry.example/olm-catalog-datasource
+  tag: v0.0.0
+signaturePolicy:
+  existingConfigMap: olm-catalog-policy
+registryAuth:
+  existingSecret: olm-registry-auth
+refreshToken:
+  existingSecret: olm-refresh-token
+config:
+  refreshInterval: 6h
+  refreshTimeout: 30m
+  parseConcurrency: 2
+  sources:
+    - id: redhat-v4.22
+      image: registry.redhat.io/redhat/redhat-operator-index:v4.22
+    - id: certified-v4.22
+      image: registry.redhat.io/redhat/certified-operator-index:v4.22
+    - id: community-v4.22
+      image: registry.redhat.io/redhat/community-operator-index:v4.22
