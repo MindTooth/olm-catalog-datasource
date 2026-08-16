@@ -85,7 +85,17 @@ jobs:
             --values .github/fixtures/helm/valid-values.yaml \
             --set persistence.enabled=true \
             --set pdb.enabled=true \
+            --set replicaCount=2 \
             > /tmp/chart-persistence.yaml
+
+      - name: Ensure PodDisruptionBudget requires high availability
+        run: |
+          if helm template olm-catalog-datasource charts/olm-catalog-datasource \
+            --values .github/fixtures/helm/valid-values.yaml \
+            --set pdb.enabled=true >/dev/null 2>&1; then
+            echo 'pdb.enabled must require replicaCount >= 2' >&2
+            exit 1
+          fi
 
       - name: Render OpenShift route variant
         run: |
