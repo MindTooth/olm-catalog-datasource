@@ -125,7 +125,7 @@ sources:
     image: registry.redhat.io/redhat/community-operator-index:v4.22
 ```
 
-can be reduced to:
+This configuration can be reduced to:
 
 ```yaml
 channels: ["4.22"]

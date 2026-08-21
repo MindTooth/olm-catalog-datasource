@@ -98,6 +98,7 @@ func TestLegacySourcesRemainValidAndInheritGlobalPlatform(t *testing.T) {
 	cfg, err := Parse([]byte(`
 platform: linux/arm64/v8
 refreshInterval: 1h
+refreshTimeout: 15s
 debug: true
 openshiftGraphURL: https://graph.example.test/api
 openshiftTimeout: 45s
@@ -113,6 +114,9 @@ sources:
 	}
 	if cfg.Service.RefreshInterval != time.Hour {
 		t.Fatalf("refresh interval = %s", cfg.Service.RefreshInterval)
+	}
+	if cfg.Service.RefreshTimeout != 15*time.Second {
+		t.Fatalf("refresh timeout = %s", cfg.Service.RefreshTimeout)
 	}
 	if !cfg.Debug || cfg.Service.OpenShiftGraphURL != "https://graph.example.test/api" || cfg.Service.OpenShiftTimeout != 45*time.Second {
 		t.Fatalf("runtime settings = %#v", cfg)
@@ -139,6 +143,8 @@ func TestParseRejectsInvalidConfiguration(t *testing.T) {
 		{name: "duplicate explicit source", yaml: "sources:\n  - {id: x, image: example/x}\n  - {id: x, image: example/y}", message: `duplicate explicit source id "x"`},
 		{name: "negative concurrency", yaml: "parseConcurrency: -1\nchannels: [v4.22]", message: "at least 1"},
 		{name: "bad duration", yaml: "refreshTimeout: later\nchannels: [v4.22]", message: "refreshTimeout"},
+		{name: "zero refresh timeout", yaml: "refreshTimeout: 0s\nchannels: [v4.22]", message: "refreshTimeout must be greater than 0"},
+		{name: "negative refresh timeout", yaml: "refreshTimeout: -1s\nchannels: [v4.22]", message: "refreshTimeout must be greater than 0"},
 		{name: "multiple documents", yaml: "channels: [v4.22]\n---\nchannels: [v4.23]", message: "multiple YAML documents"},
 	}
 	for _, test := range tests {

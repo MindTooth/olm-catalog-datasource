@@ -103,7 +103,7 @@ func resolve(raw fileConfig) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	timeout, err := parseDuration("refreshTimeout", raw.RefreshTimeout, DefaultRefreshTimeout)
+	timeout, err := parsePositiveDuration("refreshTimeout", raw.RefreshTimeout, DefaultRefreshTimeout)
 	if err != nil {
 		return Config{}, err
 	}
@@ -146,6 +146,17 @@ func parseDuration(name, value string, fallback time.Duration) (time.Duration, e
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func parsePositiveDuration(name, value string, fallback time.Duration) (time.Duration, error) {
+	parsed, err := parseDuration(name, value, fallback)
+	if err != nil {
+		return 0, err
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("%s must be greater than 0", name)
 	}
 	return parsed, nil
 }
