@@ -31,9 +31,9 @@ channels:
   - "4.22"
 ```
 
-This creates the `redhat-v4.22`, `certified-v4.22`, and `community-v4.22`
-sources with the standard Red Hat images. `v4.22` is also accepted. Catalog
-images default to `linux/amd64` on every host.
+This creates the Red Hat, certified, and community catalogs for version `4.22`.
+Use v2 URLs such as `/v2/catalogs/redhat/4.22`; `v4.22` is also accepted in
+the path. Catalog images default to `linux/amd64` on every host.
 
 Registry credentials are read from the standard containers/image locations. In
 Fish, a mounted Docker config can be selected with:
@@ -91,7 +91,7 @@ After the initial refresh:
 
 ```fish
 curl --fail-with-body \
-  'http://localhost:8080/v1/catalogs/redhat-v4.22/packages/openshift-gitops-operator/channel-releases?currentChannel=gitops-1.20&currentBundle=openshift-gitops-operator.v1.20.6&selection=next'
+  'http://localhost:8080/v2/catalogs/redhat/4.22/packages/openshift-gitops-operator/channel-updates?currentChannel=gitops-1.20&currentBundle=openshift-gitops-operator.v1.20.6&selection=next'
 ```
 
 The response follows Renovate's minimal custom datasource shape:
@@ -129,7 +129,7 @@ Operator catalog releases use the catalog endpoints:
 {
   "customDatasources": {
     "openshift-operators-v4-22": {
-      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v1/catalogs/redhat-v4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&channel=gitops-1.20&mode=reachable",
+      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v2/catalogs/redhat/4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&operatorChannel=gitops-1.20&mode=reachable",
       "format": "json"
     }
   }
@@ -140,11 +140,10 @@ Use explicit Renovate versioning, for example `semver` or `loose`.
 
 ## Channel upgrades
 
-Channel names are not upgrade edges. The `channel-updates` endpoint returns a
-target only when its channel graph has a `replaces`, `skips`, or `skipRange`
-entry covering the installed bundle or version. For Renovate-managed channel
-fields, use the graph-safe `channel-releases` endpoint with the companion
-bundle-state marker described in the [API guide](docs/API.md#renovate-configuration-for-graph-safe-channel-updates):
+Channel names are not upgrade edges. The v2 `channel-updates` endpoint returns
+a target only when its channel graph has a `replaces`, `skips`, or `skipRange`
+entry covering the installed bundle or version. Its `digest` response field is
+the companion bundle-state marker Renovate must persist as `currentDigest`.
 
 ```fish
 olm-catalog-datasource channel-query \
@@ -155,10 +154,7 @@ olm-catalog-datasource channel-query \
 ```
 
 ```text
-GET /v1/catalogs/redhat-v4.22/packages/openshift-gitops-operator/channel-updates
-    ?currentChannel=gitops-1.20&currentBundle=openshift-gitops-operator.v1.20.6&selection=next
-
-GET /v1/catalogs/redhat-v4.22/packages/openshift-gitops-operator/channel-releases
+GET /v2/catalogs/redhat/4.22/packages/openshift-gitops-operator/channel-updates
     ?currentChannel=gitops-1.20&currentBundle=openshift-gitops-operator.v1.20.6&selection=next
 ```
 
@@ -168,21 +164,22 @@ These endpoints expose compact catalog metadata for manual lookup; unlike the
 update endpoints, they are not Renovate datasource responses.
 
 ```text
-GET /v1/catalogs
-GET /v1/catalogs/{source}/status
-POST /v1/refresh
-POST /v1/catalogs/{source}/refresh
-GET /v1/catalogs/{source}/packages?prefix=strimzi&limit=100
-GET /v1/catalogs/{source}/packages/{package}/channels?include=entries
-GET /v1/catalogs/{source}/packages/{package}/bundles?channel=stable
-GET /v1/catalogs/{source}/packages/{package}/graph?channel=stable
-GET /v1/catalogs/{source}/packages/{package}/resolve?channel=stable&currentVersion=1.0.0&mode=reachable
+GET /v2/catalogs
+GET /v2/catalogs/{catalog}/{version}
+POST /v2/catalogs/refresh
+POST /v2/catalogs/{catalog}/{version}/refresh
+GET /v2/catalogs/{catalog}/{version}/packages?prefix=strimzi&limit=100
+GET /v2/catalogs/{catalog}/{version}/packages/{package}?include=channels,bundles,graph
+GET /v2/catalogs/{catalog}/{version}/packages/{package}/updates
+GET /v2/catalogs/{catalog}/{version}/packages/{package}/channel-updates
+GET /v2/sources
+GET /v2/sources/{source}/packages/{package}
 ```
 
-`/channels` includes every channel, its deprecation state, entry count, and
-terminal graph bundle(s). `/resolve` returns candidates and a reason for an
-invalid request or absent path; use `kind=channel` with `currentChannel` to
-inspect a channel transition.
+The package response is compact by default. `include=channels` adds channel
+heads and deprecation state, `include=bundles` adds bundle metadata, and
+`include=graph` adds the raw `replaces`, `skips`, and `skipRange` edges. Exact
+custom source IDs use the equivalent `/v2/sources/{source}` routes.
 
 ## Security
 
@@ -191,7 +188,7 @@ signature policy, and a refresh-token file. Refresh endpoints are disabled
 until `refreshTokenFile` is configured; callers must then send its contents as
 an `Authorization: Bearer` token. The service does not disable TLS verification
 or accept unsigned images by default. Do not expose it as an arbitrary image
-proxy: the HTTP API can query only configured source IDs.
+proxy: the HTTP API can query only configured catalogs and source IDs.
 
 ## Limitations
 

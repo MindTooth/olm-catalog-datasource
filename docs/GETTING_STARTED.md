@@ -103,17 +103,19 @@ refreshInterval: 6h
 refreshTimeout: 30m
 parseConcurrency: 2
 signaturePolicy: ./policy.json
-# Required to enable POST /v1/refresh endpoints.
+# Required to enable POST /v2/catalogs/refresh endpoints.
 refreshTokenFile: ./refresh-token
 channels:
   - "4.22"
 ```
 
-This creates stable `redhat-v4.22`, `certified-v4.22`, and `community-v4.22`
-source IDs for API URLs. `v4.22` is also accepted. Quote versions without the
-prefix so YAML preserves the full value. Select multiple catalog versions by
-adding channels, and use `catalogs` when only a subset of the three standard
-catalogs is needed.
+This creates the Red Hat, certified, and community catalogs for version `4.22`.
+Use their v2 URLs as `redhat/4.22`, `certified/4.22`, and `community/4.22`.
+`v4.22` is also accepted in API paths. Quote versions without the prefix so
+YAML preserves the full value. Select multiple catalog versions by adding
+channels, and use `catalogs` when only a subset of the three standard catalogs
+is needed. The stable generated source IDs remain available through
+`/v2/sources` when an exact-source request is required.
 
 The refresh endpoints are disabled until `refreshTokenFile` is set. Generate a
 token, keep it out of source control, and restrict the file permissions:
@@ -182,10 +184,10 @@ source status to see whether it has completed:
 ```fish
 curl --fail-with-body -X POST \
   -H "Authorization: Bearer $(cat ./refresh-token)" \
-  http://localhost:8080/v1/catalogs/community-v4.22/refresh
+  http://localhost:8080/v2/catalogs/community/4.22/refresh
 
 curl --fail-with-body \
-  http://localhost:8080/v1/catalogs/community-v4.22/status
+  http://localhost:8080/v2/catalogs/community/4.22
 ```
 
 The configured token is required for refresh calls. Keep the endpoint internal
@@ -196,7 +198,7 @@ Discover packages:
 
 ```fish
 curl --fail-with-body --get \
-  http://localhost:8080/v1/catalogs/community-v4.22/packages \
+  http://localhost:8080/v2/catalogs/community/4.22/packages \
   --data-urlencode 'prefix=strimzi'
 ```
 
@@ -204,8 +206,8 @@ Query an upgrade path:
 
 ```fish
 curl --fail-with-body --get \
-  http://localhost:8080/v1/catalogs/community-v4.22/packages/strimzi-kafka-operator/updates \
-  --data-urlencode 'channel=strimzi-1.x' \
+  http://localhost:8080/v2/catalogs/community/4.22/packages/strimzi-kafka-operator/updates \
+  --data-urlencode 'operatorChannel=strimzi-1.x' \
   --data-urlencode 'currentVersion=1.0.0' \
   --data-urlencode 'mode=reachable'
 ```
@@ -386,8 +388,8 @@ approved operators.
 | `no policy.json file found` | No containers/image policy is configured. | Create or mount a policy and set `signaturePolicy`. |
 | `authentication required` or `unauthorized` | Missing/expired registry credentials or entitlement. | `REGISTRY_AUTH_FILE`, registry login, and Red Hat entitlement. |
 | No matching image manifest | The catalog does not publish the configured platform. | Check the global or per-source `platform`; the default is `linux/amd64`. |
-| `/readyz` stays `503` | Refresh is still running or repeatedly failing. | Start with `--debug`; inspect the refresh error and `/v1/catalogs`. |
-| `{"releases":[]}` | No graph-valid update path from that state. | Check `/channels`, `/graph`, and `/resolve`. |
+| `/readyz` stays `503` | Refresh is still running or repeatedly failing. | Start with `--debug`; inspect the refresh error and `/v2/catalogs`. |
+| `{"releases":[]}` | No graph-valid update path from that state. | Inspect the package with `?include=channels,graph` and verify the installed bundle state. |
 
 ## Next steps
 
