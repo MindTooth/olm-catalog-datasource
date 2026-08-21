@@ -285,6 +285,18 @@ jobs:
               --pattern "${chart_name}-${chart_version}.tgz" \
               --dir .cr-release-packages \
               --clobber
+
+            package=".cr-release-packages/${chart_name}-${chart_version}.tgz"
+            if [[ ! -f "$package" ]]; then
+              echo "release asset $package was not downloaded" >&2
+              exit 1
+            fi
+            released_chart_name="$(helm show chart "$package" | awk -F ': ' '/^name:/ { print $2; exit }')"
+            released_chart_version="$(helm show chart "$package" | awk -F ': ' '/^version:/ { print $2; exit }')"
+            if [[ "$released_chart_name" != "$chart_name" || "$released_chart_version" != "$chart_version" ]]; then
+              echo "release asset $package does not match ${chart_name}:${chart_version}" >&2
+              exit 1
+            fi
           done
 
       - name: Log in to GitHub Container Registry
@@ -298,7 +310,7 @@ jobs:
           shopt -s nullglob
           packages=(.cr-release-packages/*.tgz)
           if (( ${#packages[@]} == 0 )); then
-            echo 'chart-releaser reported changed charts but did not create a chart package' >&2
+            echo 'no released chart packages are available for OCI reconciliation' >&2
             exit 1
           fi
 

@@ -18,6 +18,11 @@ this publishes the repository chart index.
 
 Or install the same chart from GitHub Container Registry:
 
+If the GHCR package is private, authenticate with a GitHub token that has
+`read:packages` before pulling it:
+
+    printf '%s' "$GHCR_TOKEN" | helm registry login ghcr.io --username YOUR_GITHUB_USERNAME --password-stdin
+
     helm upgrade --install olm-catalog-datasource oci://ghcr.io/mindtooth/charts/olm-catalog-datasource --version 0.2.1 -f values-openshift.yaml
 
 For a checkout-based installation, use:
