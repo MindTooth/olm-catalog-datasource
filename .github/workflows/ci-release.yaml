@@ -257,7 +257,6 @@ jobs:
           version: v3.21.4
 
       - name: Publish changed charts to GitHub Pages
-        id: chart_release
         uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
         with:
           charts_dir: charts
@@ -267,15 +266,34 @@ jobs:
           CR_RELEASE_NAME_TEMPLATE: chart-{{ .Name }}-{{ .Version }}
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Download released charts for OCI reconciliation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          mkdir -p .cr-release-packages
+          for chart in charts/*/Chart.yaml; do
+            [[ -f "$chart" ]] || continue
+            chart_dir="$(dirname "$chart")"
+            chart_name="$(helm show chart "$chart_dir" | awk -F ': ' '/^name:/ { print $2; exit }')"
+            chart_version="$(helm show chart "$chart_dir" | awk -F ': ' '/^version:/ { print $2; exit }')"
+            if [[ -z "$chart_name" || -z "$chart_version" ]]; then
+              echo "could not determine chart name and version from $chart_dir" >&2
+              exit 1
+            fi
+            gh release download "chart-${chart_name}-${chart_version}" \
+              --pattern "${chart_name}-${chart_version}.tgz" \
+              --dir .cr-release-packages \
+              --clobber
+          done
+
       - name: Log in to GitHub Container Registry
-        if: steps.chart_release.outputs.changed_charts != ''
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$GHCR_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
-      - name: Publish changed charts to OCI
-        if: steps.chart_release.outputs.changed_charts != ''
+      - name: Reconcile released charts with OCI
         run: |
           shopt -s nullglob
           packages=(.cr-release-packages/*.tgz)
