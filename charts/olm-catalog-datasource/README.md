@@ -16,11 +16,9 @@ and refresh-token Secrets are optional references.
 
 The common catalog configuration is:
 
-```yaml
-config:
-  channels:
-    - "4.22"
-```
+    config:
+      channels:
+        - "4.22"
 
 This creates the standard Red Hat, certified, and community sources. Set
 `config.catalogs` to select a subset. `config.platform` defaults to
