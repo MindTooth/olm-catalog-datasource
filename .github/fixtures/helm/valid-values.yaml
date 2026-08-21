@@ -1,6 +1,5 @@
 signaturePolicy:
   existingConfigMap: olm-catalog-policy
 config:
-  sources:
-    - id: test-catalog
-      image: example.invalid/olm-catalog:test
+  channels:
+    - "4.22"

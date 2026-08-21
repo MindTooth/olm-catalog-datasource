@@ -8,8 +8,10 @@ execute `opm`, `oc-mirror`, or a container client.
 
 Start with [the getting-started guide](docs/GETTING_STARTED.md) for local,
 container, and pod deployment instructions, including registry authentication
-and signature-policy setup. See [the HTTP API guide](docs/API.md) for every
-endpoint, parameter, response, and copy-ready `curl` example.
+and signature-policy setup. The [configuration guide](docs/CONFIGURATION.md)
+defines channel expansion, defaults, and exact-source overrides. See the
+[HTTP API guide](docs/API.md) for every endpoint, parameter, response, and
+copy-ready `curl` example.
 
 The service returns only versions connected to the current bundle by declared
 `replaces`, `skips`, or `skipRange` edges. It deliberately does not treat every
@@ -17,38 +19,21 @@ newer catalog version as an upgrade.
 
 ## Status
 
-This initial implementation supports direct OpenShift cluster-release updates,
-native catalog refresh, graph-filtered bundle-version responses, and
-graph-validated channel transitions. A channel update needs the installed
-bundle identity or an unambiguous installed version; the service deliberately
-refuses to guess.
+The service supports direct OpenShift cluster-release updates, native catalog
+refresh, graph-filtered bundle-version responses, and graph-validated channel
+transitions. A channel update needs the installed bundle identity or an
+unambiguous installed version; the service deliberately refuses to guess.
 
 ## Configuration
 
 ```yaml
-listenAddress: ":8080"
-# Set true to include query strings and user agents in request logs.
-# debug: true
-refreshInterval: 6h
-refreshTimeout: 30m
-parseConcurrency: 2
-# Optional override for testing or a trusted update-graph mirror.
-# openshiftGraphURL: https://api.openshift.com/api/upgrades_info/v1/graph
-# openshiftTimeout: 30s
-# POST refresh endpoints are disabled without a token file.
-# refreshTokenFile: /var/run/olm-refresh-token/token
-# Mount an explicit containers/image policy in production.
-# signaturePolicy: /etc/containers/policy.json
-sources:
-  - id: redhat-v4.22
-    image: registry.redhat.io/redhat/redhat-operator-index:v4.22
-    # Override the image platform when testing a Linux-only catalog from macOS.
-    # platform: linux/amd64
-  - id: certified-v4.22
-    image: registry.redhat.io/redhat/certified-operator-index:v4.22
-  - id: community-v4.22
-    image: registry.redhat.io/redhat/community-operator-index:v4.22
+channels:
+  - "4.22"
 ```
+
+This creates the `redhat-v4.22`, `certified-v4.22`, and `community-v4.22`
+sources with the standard Red Hat images. `v4.22` is also accepted. Catalog
+images default to `linux/amd64` on every host.
 
 Registry credentials are read from the standard containers/image locations. In
 Fish, a mounted Docker config can be selected with:
@@ -57,16 +42,20 @@ Fish, a mounted Docker config can be selected with:
 set -gx REGISTRY_AUTH_FILE /var/run/registry-auth/auth.json
 ```
 
-`platform` is optional. Set it when the catalog is available only for a
-different platform than the host running the service, such as local testing on
-an Apple Silicon Mac:
+Select a catalog subset, change the global platform, or retain exact source
+control when needed:
 
 ```yaml
+platform: linux/amd64
+channels: [v4.22]
+catalogs: [redhat, community]
 sources:
   - id: community-v4.22
-    image: registry.redhat.io/redhat/community-operator-index:v4.22
-    platform: linux/amd64
+    image: mirror.example.com/community-operator-index:v4.22
 ```
+
+The explicit source replaces the generated source with the same ID. See the
+[configuration guide](docs/CONFIGURATION.md) for precedence and migration.
 
 ## Run
 
@@ -93,7 +82,6 @@ For a one-off query, pass the same selection explicitly:
 ```fish
 go run ./cmd/olm-catalog-datasource query \
   --image registry.redhat.io/redhat/community-operator-index:v4.20 \
-  --platform linux/amd64 \
   --package strimzi-kafka-operator \
   --channel stable \
   --current-version 0.47.0
@@ -140,7 +128,7 @@ Operator catalog releases use the catalog endpoints:
 ```json
 {
   "customDatasources": {
-    "openshift-operators-v4-20": {
+    "openshift-operators-v4-22": {
       "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v1/catalogs/redhat-v4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&channel=gitops-1.20&mode=reachable",
       "format": "json"
     }

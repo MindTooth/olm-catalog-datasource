@@ -5,6 +5,7 @@ the external pieces the service needs: access to a catalog registry, registry
 credentials, an image signature policy, and writable cache and temporary
 storage.
 
+For configuration details, see the [configuration guide](CONFIGURATION.md).
 For endpoint details and further `curl` examples, see the [HTTP API guide](API.md).
 
 ## What you need
@@ -26,13 +27,12 @@ containers/image policy, and writable `/tmp` and cache directories.
 ```fish
 git clone https://github.com/MindTooth/olm-catalog-datasource.git
 cd olm-catalog-datasource
-git switch initial-implementation
-go mod tidy
+go mod download
 go test ./...
 ```
 
-`go mod tidy` downloads the upstream Operator Framework libraries and creates
-`go.sum` if it is not already present. Do this in a networked development or CI
+`go mod download` verifies that the committed module definition can be
+resolved without rewriting it. Run this in a networked development or CI
 environment before building the container image.
 
 ## 2. Authenticate to the catalog registry
@@ -88,7 +88,7 @@ your environment requires supply-chain verification.
 
 ## 4. Create a catalog configuration
 
-Copy the example and add the policy path and source you want to query:
+Copy the example and add the policy path and catalog channel you want to query:
 
 ```fish
 cp config.example.yaml config.yaml
@@ -105,14 +105,15 @@ parseConcurrency: 2
 signaturePolicy: ./policy.json
 # Required to enable POST /v1/refresh endpoints.
 refreshTokenFile: ./refresh-token
-sources:
-  - id: community-v4.22
-    image: registry.redhat.io/redhat/community-operator-index:v4.22
-    platform: linux/amd64
+channels:
+  - "4.22"
 ```
 
-`id` is a stable local name used in API URLs. You can configure more than one
-catalog, including different OpenShift releases such as `v4.20` and `v4.22`.
+This creates stable `redhat-v4.22`, `certified-v4.22`, and `community-v4.22`
+source IDs for API URLs. `v4.22` is also accepted. Quote versions without the
+prefix so YAML preserves the full value. Select multiple catalog versions by
+adding channels, and use `catalogs` when only a subset of the three standard
+catalogs is needed.
 
 The refresh endpoints are disabled until `refreshTokenFile` is set. Generate a
 token, keep it out of source control, and restrict the file permissions:
@@ -122,14 +123,16 @@ openssl rand -base64 32 > refresh-token
 chmod 600 refresh-token
 ```
 
-### Apple Silicon and other non-Linux hosts
+### Platform selection
 
 Most Red Hat catalog images are published as `linux/amd64`. The `platform`
 field tells the registry library which image manifest to pull; it does not run
-the catalog image. Set this when working on an Apple Silicon Mac:
+the catalog image. `linux/amd64` is the default even when the service runs on
+Apple Silicon or another platform, so no local-host override is normally
+needed. A global or per-source override remains available:
 
 ```yaml
-platform: linux/amd64
+platform: linux/arm64
 ```
 
 ## 5. Run and verify locally
@@ -146,11 +149,11 @@ by atomically replacing symlinks. A valid change is applied as one unit; an
 invalid change is logged and the last valid configuration and catalog snapshots
 remain active.
 
-Changes to `sources`, `refreshInterval`, `refreshTimeout`, `parseConcurrency`,
-`signaturePolicy`, and `refreshTokenFile` take effect automatically. A new or
-changed source is queued for an immediate refresh. Changing `listenAddress`
-still requires a pod or process restart because the HTTP listener is already
-bound.
+Changes to `channels`, `catalogs`, `sources`, `platform`, refresh settings,
+`parseConcurrency`, `signaturePolicy`, `refreshTokenFile`, and OpenShift graph
+settings take effect automatically. A new or changed resolved source is queued
+for an immediate refresh. Changing `listenAddress` still requires a pod or
+process restart because the HTTP listener is already bound.
 
 To tune the check period or turn it off:
 
@@ -212,7 +215,7 @@ declare a usable path from that installed release.
 
 ## 6. Build and run a container
 
-Build an image after completing `go mod tidy`:
+Build an image after downloading and verifying the modules:
 
 ```fish
 podman build -t olm-catalog-datasource:dev -f Containerfile .
@@ -382,14 +385,14 @@ approved operators.
 | --- | --- | --- |
 | `no policy.json file found` | No containers/image policy is configured. | Create or mount a policy and set `signaturePolicy`. |
 | `authentication required` or `unauthorized` | Missing/expired registry credentials or entitlement. | `REGISTRY_AUTH_FILE`, registry login, and Red Hat entitlement. |
-| No matching Darwin/ARM manifest | The catalog does not publish your host platform. | Add `platform: linux/amd64`. |
+| No matching image manifest | The catalog does not publish the configured platform. | Check the global or per-source `platform`; the default is `linux/amd64`. |
 | `/readyz` stays `503` | Refresh is still running or repeatedly failing. | Start with `--debug`; inspect the refresh error and `/v1/catalogs`. |
 | `{"releases":[]}` | No graph-valid update path from that state. | Check `/channels`, `/graph`, and `/resolve`. |
 
 ## Next steps
 
 - Configure Renovate using the update endpoint described in the [HTTP API guide](API.md).
-- Add each supported OpenShift catalog as a separate source ID to compare
-  release streams such as `v4.20` and `v4.22`.
+- Add each supported OpenShift catalog version to `channels` to compare release
+  streams such as `v4.20` and `v4.22`.
 - Mount an approved signature policy and a rotating registry-auth Secret before
   exposing the service to automated consumers.
