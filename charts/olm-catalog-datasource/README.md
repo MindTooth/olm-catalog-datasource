@@ -10,6 +10,9 @@ Create a registry authentication Secret and a ConfigMap or Secret containing the
 
 Install from the GitHub Pages Helm repository:
 
+GitHub Pages must first deploy the `gh-pages` branch from the repository root;
+this publishes the repository chart index.
+
     helm repo add mindtooth https://mindtooth.github.io/olm-catalog-datasource
     helm upgrade --install olm-catalog-datasource mindtooth/olm-catalog-datasource --version 0.2.1 -f values-openshift.yaml
 
