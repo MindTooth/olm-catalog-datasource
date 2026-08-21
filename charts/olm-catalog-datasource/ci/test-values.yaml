@@ -1,0 +1,5 @@
+signaturePolicy:
+  existingConfigMap: olm-catalog-policy
+config:
+  channels:
+    - "4.22"
