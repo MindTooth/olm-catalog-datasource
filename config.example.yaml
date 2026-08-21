@@ -14,12 +14,24 @@ parseConcurrency: 2
 # refreshTokenFile: /var/run/olm-refresh-token/token
 # Mount an explicit containers/image policy in production.
 # signaturePolicy: /etc/containers/policy.json
-sources:
-  - id: redhat-v4.22
-    image: registry.redhat.io/redhat/redhat-operator-index:v4.22
-    # Override the image platform when testing a Linux-only catalog from macOS.
-    # platform: linux/amd64
-  - id: certified-v4.22
-    image: registry.redhat.io/redhat/certified-operator-index:v4.22
-  - id: community-v4.22
-    image: registry.redhat.io/redhat/community-operator-index:v4.22
+# linux/amd64 is the default for every generated and explicit source.
+# platform: linux/amd64
+
+# A channel creates redhat, certified, and community sources. Versions without
+# a v prefix must be quoted so YAML keeps them as strings.
+channels:
+  - "4.22"
+
+# Optionally select a subset of the built-in catalogs.
+# catalogs:
+#   - redhat
+#   - community
+
+# Exact source definitions remain available for custom catalogs and overrides.
+# A source whose ID matches a generated source replaces that complete source.
+# sources:
+#   - id: community-v4.22
+#     image: mirror.example.com/community-operator-index:v4.22
+#     platform: linux/arm64
+#   - id: private-v4.22
+#     image: registry.example.com/private-operator-index:v4.22

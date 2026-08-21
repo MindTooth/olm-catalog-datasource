@@ -19,11 +19,22 @@ data:
     parseConcurrency: {{ .Values.config.parseConcurrency }}
     openshiftTimeout: {{ .Values.config.openshiftTimeout | quote }}
     signaturePolicy: /etc/containers/{{ .Values.signaturePolicy.key }}
+    platform: {{ .Values.config.platform | quote }}
     {{- with .Values.config.openshiftGraphURL }}
     openshiftGraphURL: {{ . | quote }}
     {{- end }}
     {{- with .Values.refreshToken.existingSecret }}
     refreshTokenFile: /var/run/olm-refresh-token/{{ $.Values.refreshToken.key }}
     {{- end }}
+    {{- with .Values.config.channels }}
+    channels:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+    {{- with .Values.config.catalogs }}
+    catalogs:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+    {{- with .Values.config.sources }}
     sources:
-{{ toYaml .Values.config.sources | indent 6 }}
+{{ toYaml . | indent 6 }}
+    {{- end }}

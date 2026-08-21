@@ -15,22 +15,9 @@ import (
 	"time"
 
 	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
+	"github.com/MindTooth/olm-catalog-datasource/internal/config"
 	"github.com/MindTooth/olm-catalog-datasource/internal/service"
-	"go.yaml.in/yaml/v3"
 )
-
-type fileConfig struct {
-	ListenAddress     string           `yaml:"listenAddress"`
-	Debug             bool             `yaml:"debug"`
-	RefreshInterval   string           `yaml:"refreshInterval"`
-	RefreshTimeout    string           `yaml:"refreshTimeout"`
-	SignaturePolicy   string           `yaml:"signaturePolicy"`
-	ParseConcurrency  int              `yaml:"parseConcurrency"`
-	RefreshTokenFile  string           `yaml:"refreshTokenFile"`
-	OpenShiftGraphURL string           `yaml:"openshiftGraphURL"`
-	OpenShiftTimeout  string           `yaml:"openshiftTimeout"`
-	Sources           []catalog.Source `yaml:"sources"`
-}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -54,67 +41,21 @@ func main() {
 	}
 }
 
-func load(path string) (fileConfig, error) {
+func load(path string) (config.Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return fileConfig{}, err
+		return config.Config{}, err
 	}
-	return parseConfig(b)
+	return config.Parse(b)
 }
 
-func loadWithDigest(path string) (fileConfig, [sha256.Size]byte, error) {
+func loadWithDigest(path string) (config.Config, [sha256.Size]byte, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return fileConfig{}, [sha256.Size]byte{}, err
+		return config.Config{}, [sha256.Size]byte{}, err
 	}
-	c, err := parseConfig(b)
+	c, err := config.Parse(b)
 	return c, sha256.Sum256(b), err
-}
-
-func parseConfig(b []byte) (fileConfig, error) {
-	var c fileConfig
-	if err := yaml.Unmarshal(b, &c); err != nil {
-		return c, err
-	}
-	if len(c.Sources) == 0 {
-		return c, errors.New("sources is required")
-	}
-	return c, nil
-}
-func toService(c fileConfig) (service.Config, error) {
-	interval := 6 * time.Hour
-	timeout := 30 * time.Minute
-	openshiftTimeout := 30 * time.Second
-	var err error
-	if c.RefreshInterval != "" {
-		interval, err = time.ParseDuration(c.RefreshInterval)
-		if err != nil {
-			return service.Config{}, err
-		}
-	}
-	if c.RefreshTimeout != "" {
-		timeout, err = time.ParseDuration(c.RefreshTimeout)
-		if err != nil {
-			return service.Config{}, err
-		}
-	}
-	if c.OpenShiftTimeout != "" {
-		openshiftTimeout, err = time.ParseDuration(c.OpenShiftTimeout)
-		if err != nil {
-			return service.Config{}, err
-		}
-	}
-	seen := make(map[string]bool, len(c.Sources))
-	for _, source := range c.Sources {
-		if source.ID == "" || source.Image == "" {
-			return service.Config{}, errors.New("every source requires id and image")
-		}
-		if seen[source.ID] {
-			return service.Config{}, fmt.Errorf("duplicate source id %q", source.ID)
-		}
-		seen[source.ID] = true
-	}
-	return service.Config{Sources: c.Sources, RefreshInterval: interval, RefreshTimeout: timeout, SignaturePolicy: c.SignaturePolicy, ParseConcurrency: c.ParseConcurrency, RefreshTokenFile: c.RefreshTokenFile, OpenShiftGraphURL: c.OpenShiftGraphURL, OpenShiftTimeout: openshiftTimeout}, nil
 }
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
@@ -138,11 +79,6 @@ func serve(args []string) {
 	if c.Debug {
 		setLogLevel(slog.LevelDebug)
 	}
-	cfg, err := toService(c)
-	if err != nil {
-		slog.Error("parse config", "error", err)
-		os.Exit(1)
-	}
 	if *listen == "" {
 		*listen = c.ListenAddress
 	}
@@ -151,15 +87,10 @@ func serve(args []string) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	svc := service.New(cfg)
+	svc := service.New(c.Service)
 	go svc.Run(ctx)
 	if *reloadInterval > 0 {
-		go watchConfig(ctx, *configPath, *reloadInterval, configDigest, func(next fileConfig) {
-			nextCfg, err := toService(next)
-			if err != nil {
-				slog.Error("reload config", "error", err)
-				return
-			}
+		go watchConfig(ctx, *configPath, *reloadInterval, configDigest, func(next config.Config) {
 			if next.ListenAddress != c.ListenAddress {
 				slog.Warn("listen address change requires restart", "configured", next.ListenAddress)
 			}
@@ -168,9 +99,9 @@ func serve(args []string) {
 			} else {
 				setLogLevel(slog.LevelInfo)
 			}
-			svc.Reload(nextCfg)
+			svc.Reload(next.Service)
 			c = next
-			slog.Info("config reloaded", "sources", len(next.Sources))
+			slog.Info("config reloaded", "sources", len(next.Service.Sources))
 		})
 	}
 	server := &http.Server{Addr: *listen, Handler: svc.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
@@ -189,7 +120,7 @@ func serve(args []string) {
 
 // watchConfig compares file content instead of filesystem events. This also
 // works for Kubernetes ConfigMap mounts, which atomically swap symlinks.
-func watchConfig(ctx context.Context, configPath string, interval time.Duration, last [sha256.Size]byte, onChange func(fileConfig)) {
+func watchConfig(ctx context.Context, configPath string, interval time.Duration, last [sha256.Size]byte, onChange func(config.Config)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -207,7 +138,7 @@ func watchConfig(ctx context.Context, configPath string, interval time.Duration,
 				continue
 			}
 			last = digest
-			c, err := parseConfig(b)
+			c, err := config.Parse(b)
 			if err != nil {
 				slog.Error("reload config", "error", err)
 				continue
@@ -230,13 +161,8 @@ func refresh(args []string) {
 		slog.Error("load config", "error", err)
 		os.Exit(1)
 	}
-	cfg, err := toService(c)
-	if err != nil {
-		slog.Error("config", "error", err)
-		os.Exit(1)
-	}
-	svc := service.New(cfg)
-	for _, source := range cfg.Sources {
+	svc := service.New(c.Service)
+	for _, source := range c.Service.Sources {
 		if *sourceID != "" && source.ID != *sourceID {
 			continue
 		}
@@ -255,7 +181,7 @@ func query(args []string) {
 	currentVersion := fs.String("current-version", "", "installed version")
 	currentBundle := fs.String("current-bundle", "", "installed bundle")
 	policy := fs.String("signature-policy", "", "containers/image policy")
-	platform := fs.String("platform", "", "catalog platform (for example linux/amd64)")
+	platform := fs.String("platform", config.DefaultPlatform, "catalog platform (for example linux/amd64)")
 	_ = fs.Parse(args)
 	if *imageRef == "" || *packageName == "" || (*currentVersion == "" && *currentBundle == "") {
 		fs.Usage()
@@ -287,7 +213,7 @@ func channelQuery(args []string) {
 	currentVersion := fs.String("current-version", "", "installed version")
 	currentBundle := fs.String("current-bundle", "", "installed bundle")
 	policy := fs.String("signature-policy", "", "containers/image policy")
-	platform := fs.String("platform", "", "catalog platform (for example linux/amd64)")
+	platform := fs.String("platform", config.DefaultPlatform, "catalog platform (for example linux/amd64)")
 	_ = fs.Parse(args)
 	if *imageRef == "" || *packageName == "" || *currentChannel == "" || (*currentVersion == "" && *currentBundle == "") {
 		fs.Usage()

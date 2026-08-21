@@ -71,7 +71,9 @@ jobs:
         uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
 
       - name: Lint the chart with required deployment values
-        run: helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/valid-values.yaml
+        run: |
+          helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/valid-values.yaml
+          helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/explicit-source-values.yaml
 
       - name: Enforce chart version bumps for chart changes
         if: github.event_name == 'pull_request'
@@ -90,6 +92,9 @@ jobs:
             --set pdb.enabled=true \
             --set replicaCount=2 \
             > /tmp/chart-persistence.yaml
+          helm template olm-catalog-datasource charts/olm-catalog-datasource \
+            --values .github/fixtures/helm/explicit-source-values.yaml \
+            > /tmp/chart-explicit-source.yaml
 
       - name: Ensure PodDisruptionBudget requires high availability
         run: |
@@ -124,6 +129,7 @@ jobs:
         run: |
           kubectl apply --server-side --dry-run=server --validate=strict -f /tmp/chart-standard.yaml
           kubectl apply --server-side --dry-run=server --validate=strict -f /tmp/chart-persistence.yaml
+          kubectl apply --server-side --dry-run=server --validate=strict -f /tmp/chart-explicit-source.yaml
 
   container-verify:
     name: Container build

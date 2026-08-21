@@ -149,6 +149,12 @@ func parsePlatform(value string) (osChoice, architectureChoice, variantChoice st
 	return parts[0], parts[1], strings.Join(parts[2:], ""), nil
 }
 
+// ValidatePlatform checks an OCI platform in os/architecture[/variant] form.
+func ValidatePlatform(value string) error {
+	_, _, _, err := parsePlatform(value)
+	return err
+}
+
 // safeJoin resolves an OCI image path inside root. FBC images conventionally
 // use absolute-looking paths such as /configs; they are absolute only within
 // the image filesystem, not on the host.

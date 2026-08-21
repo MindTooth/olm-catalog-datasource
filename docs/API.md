@@ -17,14 +17,13 @@ Strimzi examples below.
 
 ## Before calling the API
 
-Configure and start the service. A source ID is the value used in every URL;
-it is not inferred from the image name.
+Configure and start the service. Standard channel selection generates stable
+source IDs for use in URLs. Exact sources remain available for custom images;
+see the [configuration guide](CONFIGURATION.md).
 
 ```yaml
-sources:
-  - id: redhat-v4.22
-    image: registry.redhat.io/redhat/redhat-operator-index:v4.22
-    platform: linux/amd64
+channels:
+  - "4.22"
 ```
 
 ```fish
@@ -240,13 +239,14 @@ Example response:
     }
   ],
   "sourceUrl": "https://multi.ocp.releases.ci.openshift.org",
-  "homepage": "https://www.openshift.com"
+  "homepage": "https://openshift.com"
 }
 ```
 
-An absent `currentVersion` returns an empty release list because the graph does
-not declare a valid path from that state. Invalid parameters return `400`; an
-upstream graph failure returns `502`.
+A missing `currentVersion` or another invalid parameter returns `400`. A
+well-formed version that is absent from the graph returns an empty release list
+because the graph does not declare a valid path from that state. An upstream
+graph failure returns `502`.
 
 Renovate configuration:
 

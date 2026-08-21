@@ -10,7 +10,23 @@ Create a registry authentication Secret and a ConfigMap or Secret containing the
 
     helm upgrade --install olm-catalog-datasource charts/olm-catalog-datasource -f charts/olm-catalog-datasource/values-openshift.yaml
 
-`values-openshift.yaml` must set a released application image, at least one catalog source, and the existing policy object. Registry auth and refresh-token Secrets are optional references.
+`values-openshift.yaml` must set a released application image, at least one
+catalog channel or exact source, and the existing policy object. Registry auth
+and refresh-token Secrets are optional references.
+
+The common catalog configuration is:
+
+```yaml
+config:
+  channels:
+    - "4.22"
+```
+
+This creates the standard Red Hat, certified, and community sources. Set
+`config.catalogs` to select a subset. `config.platform` defaults to
+`linux/amd64`; `config.sources` supports exact replacements and custom sources.
+See the project [configuration guide](../../docs/CONFIGURATION.md) for the
+normalization and precedence rules.
 
 ## Operations
 

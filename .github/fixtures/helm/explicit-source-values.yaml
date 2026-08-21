@@ -1,0 +1,8 @@
+signaturePolicy:
+  existingConfigMap: olm-catalog-policy
+config:
+  channels: []
+  sources:
+    - id: test-catalog
+      image: example.invalid/olm-catalog:test
+      platform: linux/arm64

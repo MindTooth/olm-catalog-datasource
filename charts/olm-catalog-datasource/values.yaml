@@ -20,6 +20,11 @@ config:
   parseConcurrency: 2
   openshiftGraphURL: ""
   openshiftTimeout: 30s
+  platform: linux/amd64
+  channels: []
+  # Empty selects all built-in catalogs: redhat, certified, and community.
+  catalogs: []
+  # Optional exact source overrides and custom sources.
   sources: []
 registryAuth:
   existingSecret: ""
