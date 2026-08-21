@@ -6,10 +6,21 @@ module.exports = {
     [
       '@semantic-release/commit-analyzer',
       {
-        releaseRules: [{ scope: 'chart', release: false }],
+        // Keep semantic versioning correct when a custom rule also matches.
+        releaseRules: [
+          { breaking: true, release: 'major' },
+          { type: 'build', release: 'patch' },
+          { type: 'refactor', release: 'patch' },
+        ],
+        preset: 'conventionalcommits',
       },
     ],
-    '@semantic-release/release-notes-generator',
+    [
+      '@semantic-release/release-notes-generator',
+      {
+        preset: 'conventionalcommits',
+      },
+    ],
     [
       '@semantic-release/github',
       {
