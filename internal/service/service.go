@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -520,10 +521,10 @@ func (s *Service) catalogV2(w http.ResponseWriter, r *http.Request) {
 	s.sourceV2Resource(w, r, sourceID, parts[4:])
 }
 
-// sourceV2 retains an exact-source escape hatch for catalogs configured with
-// a custom ID or image. The package operations mirror catalogV2.
+// sourceV2 retains an exact-source escape hatch for configured source IDs.
+// The package operations mirror catalogV2.
 func (s *Service) sourceV2(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(strings.Trim(path.Clean(r.URL.Path), "/"), "/")
+	parts := strings.Split(strings.Trim(path.Clean(r.URL.EscapedPath()), "/"), "/")
 	if len(parts) < 2 || parts[0] != "v2" || parts[1] != "sources" {
 		http.NotFound(w, r)
 		return
@@ -536,7 +537,12 @@ func (s *Service) sourceV2(w http.ResponseWriter, r *http.Request) {
 		s.listSourcesV2(w)
 		return
 	}
-	s.sourceV2Resource(w, r, parts[2], parts[3:])
+	sourceID, err := url.PathUnescape(parts[2])
+	if err != nil {
+		http.Error(w, "invalid source ID", http.StatusBadRequest)
+		return
+	}
+	s.sourceV2Resource(w, r, sourceID, parts[3:])
 }
 
 func (s *Service) sourceV2Resource(w http.ResponseWriter, r *http.Request, sourceID string, route []string) {
