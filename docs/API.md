@@ -1,7 +1,10 @@
 # HTTP API guide
 
-This guide describes every HTTP endpoint exposed by
-`olm-catalog-datasource`. It is useful in two different ways:
+This guide describes the HTTP API exposed by `olm-catalog-datasource`. New
+integrations should use v2. The v1 endpoints remain available for existing
+Renovate configurations.
+
+The API is useful in two different ways:
 
 - **Renovate** should use the update endpoints. They always return the
   small `{"releases":[...]}` datasource format.
@@ -18,8 +21,8 @@ Strimzi examples below.
 ## Before calling the API
 
 Configure and start the service. Standard channel selection generates stable
-source IDs for use in URLs. Exact sources remain available for custom images;
-see the [configuration guide](CONFIGURATION.md).
+catalog/version routes and source IDs. Exact sources remain available for
+custom images; see the [configuration guide](CONFIGURATION.md).
 
 ```yaml
 channels:
@@ -50,6 +53,69 @@ curl --fail-with-body http://localhost:8080/readyz
 - The update endpoints return `422` for malformed or ambiguous current state.
 - An empty Renovate release list is a valid answer: it means the catalog does
   not declare a graph-valid path for the requested state.
+
+## Recommended v2 API
+
+V2 matches the simplified configuration model. Use a catalog name and catalog
+version for the normal generated sources; use a source ID only for an exact
+custom source or override. Catalog versions accept both `4.22` and `v4.22`;
+both forms select the same catalog. Responses list the canonical form without
+the prefix.
+
+| Purpose | Generated catalog route | Exact source route |
+| --- | --- | --- |
+| Discover configured inputs | `GET /v2/catalogs` | `GET /v2/sources` |
+| Status | `GET /v2/catalogs/{catalog}/{version}` | `GET /v2/sources/{source}` |
+| Refresh one | `POST /v2/catalogs/{catalog}/{version}/refresh` | `POST /v2/sources/{source}/refresh` |
+| List packages | `GET .../packages` | `GET .../packages` |
+| Inspect a package | `GET .../packages/{package}` | `GET .../packages/{package}` |
+| Version updates | `GET .../packages/{package}/updates` | `GET .../packages/{package}/updates` |
+| Channel updates | `GET .../packages/{package}/channel-updates` | `GET .../packages/{package}/channel-updates` |
+
+`POST /v2/catalogs/refresh` queues a refresh of every configured source. It
+uses the same optional Bearer-token protection as the v1 refresh endpoints.
+
+For example, a generated Red Hat source created by `channels: ["4.22"]` is
+queried as:
+
+```fish
+curl --fail-with-body --get \
+  http://localhost:8080/v2/catalogs/redhat/4.22/packages/openshift-gitops-operator/updates \
+  --data-urlencode 'operatorChannel=gitops-1.20' \
+  --data-urlencode 'currentBundle=openshift-gitops-operator.v1.20.0' \
+  --data-urlencode 'mode=reachable'
+```
+
+`currentVersion` may be used instead of `currentBundle` when the version is
+unambiguous. `operatorChannel` is intentionally named to distinguish an
+operator update channel from the catalog version in the path.
+
+### Package inspection
+
+`GET /v2/catalogs/{catalog}/{version}/packages/{package}` returns a compact
+package summary by default. Add a comma-separated `include` query parameter
+only for the extra data needed:
+
+- `channels` returns channel names, deprecation state, entry counts, and heads.
+- `bundles` returns bundle names, versions, images, and deprecation state.
+- `graph` returns each channel's declared OLM edges.
+
+For example:
+
+```fish
+curl --fail-with-body --get \
+  'http://localhost:8080/v2/catalogs/community/4.22/packages/strimzi-kafka-operator?include=channels,bundles'
+```
+
+The v2 `channel-updates` endpoint returns only graph-valid target channels. Its
+`digest` field is the opaque target bundle name. Renovate should persist it as
+`currentDigest` and send it as `currentBundle` in the next request.
+
+## Legacy v1 API
+
+The following v1 endpoints are retained for compatibility. Prefer v2 for new
+clients; its routes are based on the configured catalog and version instead of
+requiring callers to construct a generated source ID.
 
 ## Health and readiness
 

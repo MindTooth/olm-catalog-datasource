@@ -164,14 +164,20 @@ func TestCatalogStatusEndpoint(t *testing.T) {
 }
 
 func TestRefreshEndpointsQueueConfiguredSources(t *testing.T) {
-	source := catalog.Source{ID: "test", Image: ""}
+	source := catalog.Source{ID: "test-v4.20", Image: ""}
 	tokenFile := filepath.Join(t.TempDir(), "refresh-token")
 	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tokenFile})
 
-	for _, target := range []string{"/v1/refresh", "/v1/catalogs/test/refresh"} {
+	for _, target := range []string{
+		"/v1/refresh",
+		"/v1/catalogs/test-v4.20/refresh",
+		"/v2/catalogs/refresh",
+		"/v2/catalogs/test/4.20/refresh",
+		"/v2/sources/test-v4.20/refresh",
+	} {
 		req := httptest.NewRequest(http.MethodPost, target, nil)
 		req.Header.Set("Authorization", "Bearer test-token")
 		res := httptest.NewRecorder()
@@ -190,7 +196,7 @@ func TestRefreshEndpointsQueueConfiguredSources(t *testing.T) {
 		}
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/catalogs/missing/refresh", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v2/catalogs/missing/4.20/refresh", nil)
 	res := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(res, req)
 	if res.Code != http.StatusNotFound {
@@ -203,7 +209,7 @@ func TestRefreshEndpointsRequireConfiguredBearerToken(t *testing.T) {
 	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	source := catalog.Source{ID: "test"}
+	source := catalog.Source{ID: "test-v4.20"}
 	cases := []struct {
 		name       string
 		tokenFile  string
@@ -219,7 +225,13 @@ func TestRefreshEndpointsRequireConfiguredBearerToken(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tc.tokenFile})
-			for _, target := range []string{"/v1/refresh", "/v1/catalogs/test/refresh"} {
+			for _, target := range []string{
+				"/v1/refresh",
+				"/v1/catalogs/test-v4.20/refresh",
+				"/v2/catalogs/refresh",
+				"/v2/catalogs/test/4.20/refresh",
+				"/v2/sources/test-v4.20/refresh",
+			} {
 				req := httptest.NewRequest(http.MethodPost, target, nil)
 				if tc.authority != "" {
 					req.Header.Set("Authorization", tc.authority)
@@ -303,5 +315,111 @@ func TestChannelReleasesEndpointReturnsTargetAndStateToken(t *testing.T) {
 	}
 	if len(body.Releases) != 1 || body.Releases[0].Version != "gitops-1.21" || body.Releases[0].Digest != "v121" {
 		t.Fatalf("unexpected response: %#v", body)
+	}
+}
+
+func TestV2CatalogAndSourceRoutes(t *testing.T) {
+	generated := catalog.Source{ID: "community-v4.20", Image: "registry.example/community:v4.20"}
+	private := catalog.Source{ID: "private", Image: "registry.example/private:latest"}
+	svc := New(Config{Sources: []catalog.Source{generated, private}})
+	packageData := &catalog.Package{Name: "gitops", DefaultChannel: "stable", Bundles: map[string]*catalog.Bundle{
+		"v1": {Name: "v1", Version: "1.0.0"},
+		"v2": {Name: "v2", Version: "1.1.0"},
+	}, Channels: map[string]*catalog.Channel{
+		"stable":   {Name: "stable", Entries: []catalog.Entry{{Name: "v1"}, {Name: "v2", Replaces: "v1"}}},
+		"stable-2": {Name: "stable-2", Entries: []catalog.Entry{{Name: "v2", Replaces: "v1"}}},
+	}}
+	svc.snapshots[generated.ID] = &catalog.Snapshot{Source: generated, Packages: map[string]*catalog.Package{"gitops": packageData}}
+	svc.snapshots[private.ID] = &catalog.Snapshot{Source: private, Packages: map[string]*catalog.Package{"gitops": packageData}}
+	svc.statuses[generated.ID] = SourceStatus{Source: generated, Available: true, PackageCount: 1}
+	svc.statuses[private.ID] = SourceStatus{Source: private, Available: true, PackageCount: 1}
+
+	for _, target := range []string{
+		"/v2/catalogs/community/4.20",
+		"/v2/catalogs/community/v4.20",
+		"/v2/sources/private",
+		"/v2/sources/private/packages/gitops",
+	} {
+		res := httptest.NewRecorder()
+		svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, target, nil))
+		if res.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d, body = %s", target, res.Code, res.Body.String())
+		}
+	}
+
+	res := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/v2/catalogs", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /v2/catalogs status = %d, body = %s", res.Code, res.Body.String())
+	}
+	var catalogs struct {
+		Catalogs []struct {
+			Catalog string `json:"catalog"`
+			Version string `json:"version"`
+		} `json:"catalogs"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&catalogs); err != nil {
+		t.Fatal(err)
+	}
+	if len(catalogs.Catalogs) != 1 || catalogs.Catalogs[0].Catalog != "community" || catalogs.Catalogs[0].Version != "4.20" {
+		t.Fatalf("unexpected catalog list: %#v", catalogs)
+	}
+
+	res = httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/v2/catalogs/community/4.20/packages/gitops?include=channels,bundles,graph", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("package details status = %d, body = %s", res.Code, res.Body.String())
+	}
+	var details struct {
+		ChannelCount int `json:"channelCount"`
+		BundleCount  int `json:"bundleCount"`
+		Channels     []struct {
+			Name string `json:"name"`
+		} `json:"channels"`
+		Bundles []struct {
+			Name string `json:"name"`
+		} `json:"bundles"`
+		Graph []struct {
+			Name string `json:"name"`
+		} `json:"graph"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&details); err != nil {
+		t.Fatal(err)
+	}
+	if details.ChannelCount != 2 || details.BundleCount != 2 || len(details.Channels) != 2 || len(details.Bundles) != 2 || len(details.Graph) != 2 {
+		t.Fatalf("unexpected package details: %#v", details)
+	}
+
+	res = httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/v2/catalogs/community/4.20/packages/gitops/updates?operatorChannel=stable&currentBundle=v1", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("version updates status = %d, body = %s", res.Code, res.Body.String())
+	}
+	var updates struct {
+		Releases []release `json:"releases"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&updates); err != nil {
+		t.Fatal(err)
+	}
+	if len(updates.Releases) != 2 || updates.Releases[1].Version != "1.1.0" {
+		t.Fatalf("unexpected version updates: %#v", updates)
+	}
+
+	res = httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/v2/catalogs/community/4.20/packages/gitops/channel-updates?currentChannel=stable&currentBundle=v1&selection=next", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("channel updates status = %d, body = %s", res.Code, res.Body.String())
+	}
+	if err := json.NewDecoder(res.Body).Decode(&updates); err != nil {
+		t.Fatal(err)
+	}
+	if len(updates.Releases) != 1 || updates.Releases[0].Version != "stable-2" || updates.Releases[0].Digest != "v2" {
+		t.Fatalf("unexpected channel updates: %#v", updates)
+	}
+
+	res = httptest.NewRecorder()
+	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/v2/catalogs/community/4.20/packages/gitops?include=metadata", nil))
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("invalid package include status = %d, want %d", res.Code, http.StatusBadRequest)
 	}
 }

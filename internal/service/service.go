@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,6 +54,8 @@ type Service struct {
 	runContext    context.Context
 	configChanged chan struct{}
 }
+
+var catalogVersionPattern = regexp.MustCompile(`^v?([1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 func New(cfg Config) *Service {
 	return &Service{
@@ -328,6 +331,10 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("/v1/catalogs", s.catalog)
 	mux.HandleFunc("/v1/catalogs/", s.catalog)
 	mux.HandleFunc("/v1/openshift-releases/", s.openshiftReleases)
+	mux.HandleFunc("/v2/catalogs", s.catalogV2)
+	mux.HandleFunc("/v2/catalogs/", s.catalogV2)
+	mux.HandleFunc("/v2/sources", s.sourceV2)
+	mux.HandleFunc("/v2/sources/", s.sourceV2)
 	return accessLog(mux)
 }
 
@@ -477,6 +484,160 @@ func (s *Service) catalog(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// catalogV2 exposes generated catalog IDs as catalog/version pairs. It is an
+// additive API: v1 remains available for existing Renovate configurations.
+func (s *Service) catalogV2(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(path.Clean(r.URL.Path), "/"), "/")
+	if len(parts) < 2 || parts[0] != "v2" || parts[1] != "catalogs" {
+		http.NotFound(w, r)
+		return
+	}
+	if len(parts) == 2 {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w, http.MethodGet)
+			return
+		}
+		s.listCatalogsV2(w)
+		return
+	}
+	if len(parts) == 3 && parts[2] == "refresh" {
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w, http.MethodPost)
+			return
+		}
+		s.refreshAllHTTP(w, r)
+		return
+	}
+	if len(parts) < 4 {
+		http.NotFound(w, r)
+		return
+	}
+	sourceID, ok := catalogSourceID(parts[2], parts[3])
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	s.sourceV2Resource(w, r, sourceID, parts[4:])
+}
+
+// sourceV2 retains an exact-source escape hatch for catalogs configured with
+// a custom ID or image. The package operations mirror catalogV2.
+func (s *Service) sourceV2(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(path.Clean(r.URL.Path), "/"), "/")
+	if len(parts) < 2 || parts[0] != "v2" || parts[1] != "sources" {
+		http.NotFound(w, r)
+		return
+	}
+	if len(parts) == 2 {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w, http.MethodGet)
+			return
+		}
+		s.listSourcesV2(w)
+		return
+	}
+	s.sourceV2Resource(w, r, parts[2], parts[3:])
+}
+
+func (s *Service) sourceV2Resource(w http.ResponseWriter, r *http.Request, sourceID string, route []string) {
+	if len(route) == 0 {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w, http.MethodGet)
+			return
+		}
+		s.catalogStatus(w, sourceID)
+		return
+	}
+	if len(route) == 1 && route[0] == "refresh" {
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w, http.MethodPost)
+			return
+		}
+		s.refreshOneHTTP(w, r, sourceID)
+		return
+	}
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	if len(route) == 1 && route[0] == "packages" {
+		s.listPackages(w, r, sourceID)
+		return
+	}
+	if len(route) < 2 || route[0] != "packages" {
+		http.NotFound(w, r)
+		return
+	}
+	s.packageV2(w, r, sourceID, route[1], route[2:])
+}
+
+func (s *Service) refreshOneHTTP(w http.ResponseWriter, r *http.Request, sourceID string) {
+	if !s.hasSource(sourceID) {
+		http.NotFound(w, r)
+		return
+	}
+	if !s.authorizeRefresh(w, r) {
+		return
+	}
+	s.refreshHTTP(w, r, sourceID)
+}
+
+func (s *Service) packageV2(w http.ResponseWriter, r *http.Request, sourceID, packageName string, action []string) {
+	snap := s.snapshot(w, sourceID)
+	if snap == nil {
+		return
+	}
+	pkg := snap.Packages[packageName]
+	if pkg == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if len(action) == 0 {
+		s.packageDetails(w, r, pkg)
+		return
+	}
+	if len(action) != 1 {
+		http.NotFound(w, r)
+		return
+	}
+	switch action[0] {
+	case "updates":
+		s.versionUpdatesV2(w, r, pkg)
+	case "channel-updates":
+		s.channelReleases(w, r, pkg)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func catalogSourceID(name, version string) (string, bool) {
+	if name == "" {
+		return "", false
+	}
+	match := catalogVersionPattern.FindStringSubmatch(version)
+	if match == nil {
+		return "", false
+	}
+	return name + "-v" + match[1] + "." + match[2], true
+}
+
+func catalogReference(sourceID string) (name, version string, ok bool) {
+	index := strings.LastIndex(sourceID, "-v")
+	if index <= 0 {
+		return "", "", false
+	}
+	match := catalogVersionPattern.FindStringSubmatch(sourceID[index+1:])
+	if match == nil {
+		return "", "", false
+	}
+	return sourceID[:index], match[1] + "." + match[2], true
+}
+
+func methodNotAllowed(w http.ResponseWriter, method string) {
+	w.Header().Set("Allow", method)
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
 func (s *Service) refreshAllHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -591,6 +752,47 @@ func (s *Service) listCatalogs(w http.ResponseWriter) {
 	}{statuses})
 }
 
+func (s *Service) listCatalogsV2(w http.ResponseWriter) {
+	type item struct {
+		Catalog string `json:"catalog"`
+		Version string `json:"version"`
+		SourceStatus
+	}
+	items := make([]item, 0, len(s.cfg.Sources))
+	s.mu.RLock()
+	for _, source := range s.cfg.Sources {
+		name, version, ok := catalogReference(source.ID)
+		if !ok {
+			continue
+		}
+		status, ok := s.statuses[source.ID]
+		if !ok {
+			status.Source = source
+		}
+		items = append(items, item{Catalog: name, Version: version, SourceStatus: status})
+	}
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, struct {
+		Catalogs []item `json:"catalogs"`
+	}{Catalogs: items})
+}
+
+func (s *Service) listSourcesV2(w http.ResponseWriter) {
+	statuses := make([]SourceStatus, 0, len(s.cfg.Sources))
+	s.mu.RLock()
+	for _, source := range s.cfg.Sources {
+		status, ok := s.statuses[source.ID]
+		if !ok {
+			status.Source = source
+		}
+		statuses = append(statuses, status)
+	}
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, struct {
+		Sources []SourceStatus `json:"sources"`
+	}{Sources: statuses})
+}
+
 func (s *Service) catalogStatus(w http.ResponseWriter, sourceID string) {
 	s.mu.RLock()
 	status, ok := s.statuses[sourceID]
@@ -637,6 +839,90 @@ func (s *Service) listPackages(w http.ResponseWriter, r *http.Request, sourceID 
 	}{items, limit})
 }
 
+func (s *Service) packageDetails(w http.ResponseWriter, r *http.Request, p *catalog.Package) {
+	include, err := packageIncludes(r.URL.Query().Get("include"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	type bundle struct {
+		Name       string `json:"name"`
+		Version    string `json:"version"`
+		Image      string `json:"image,omitempty"`
+		Deprecated bool   `json:"deprecated"`
+	}
+	type channel struct {
+		Name       string    `json:"name"`
+		Deprecated bool      `json:"deprecated"`
+		Entries    int       `json:"entries"`
+		Heads      []release `json:"heads"`
+	}
+	type graphChannel struct {
+		Name    string          `json:"name"`
+		Entries []catalog.Entry `json:"entries"`
+	}
+	response := struct {
+		Name           string         `json:"name"`
+		DefaultChannel string         `json:"defaultChannel"`
+		ChannelCount   int            `json:"channelCount"`
+		BundleCount    int            `json:"bundleCount"`
+		Channels       []channel      `json:"channels,omitempty"`
+		Bundles        []bundle       `json:"bundles,omitempty"`
+		Graph          []graphChannel `json:"graph,omitempty"`
+	}{
+		Name:           p.Name,
+		DefaultChannel: p.DefaultChannel,
+		ChannelCount:   len(p.Channels),
+		BundleCount:    len(p.Bundles),
+	}
+	channelNames := sortedChannelNames(p.Channels)
+	if include["channels"] {
+		response.Channels = make([]channel, 0, len(channelNames))
+		for _, name := range channelNames {
+			ch := p.Channels[name]
+			heads := p.ChannelHeads(name)
+			view := channel{Name: name, Deprecated: ch.Deprecated, Entries: len(ch.Entries), Heads: make([]release, len(heads))}
+			for i, head := range heads {
+				view.Heads[i] = release{Bundle: head.Name, Version: head.Version}
+			}
+			response.Channels = append(response.Channels, view)
+		}
+	}
+	if include["bundles"] {
+		names := make([]string, 0, len(p.Bundles))
+		for name := range p.Bundles {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		response.Bundles = make([]bundle, 0, len(names))
+		for _, name := range names {
+			item := p.Bundles[name]
+			response.Bundles = append(response.Bundles, bundle{Name: item.Name, Version: item.Version, Image: item.Image, Deprecated: item.Deprecated})
+		}
+	}
+	if include["graph"] {
+		response.Graph = make([]graphChannel, 0, len(channelNames))
+		for _, name := range channelNames {
+			response.Graph = append(response.Graph, graphChannel{Name: name, Entries: p.Channels[name].Entries})
+		}
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+func packageIncludes(value string) (map[string]bool, error) {
+	include := map[string]bool{}
+	if value == "" {
+		return include, nil
+	}
+	for _, name := range strings.Split(value, ",") {
+		if name != "channels" && name != "bundles" && name != "graph" {
+			return nil, errors.New("include must contain only channels, bundles, or graph")
+		}
+		include[name] = true
+	}
+	return include, nil
+}
+
 func (s *Service) renovate(w http.ResponseWriter, r *http.Request, p *catalog.Package, action string) {
 	var values []string
 	var err error
@@ -645,6 +931,22 @@ func (s *Service) renovate(w http.ResponseWriter, r *http.Request, p *catalog.Pa
 	} else {
 		values, err = p.VersionUpdates(catalog.UpdateRequest{CurrentVersion: r.URL.Query().Get("currentVersion"), CurrentBundle: r.URL.Query().Get("currentBundle"), Channel: r.URL.Query().Get("channel"), Mode: r.URL.Query().Get("mode")})
 	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Releases []release `json:"releases"`
+	}{releases(values)})
+}
+
+func (s *Service) versionUpdatesV2(w http.ResponseWriter, r *http.Request, p *catalog.Package) {
+	values, err := p.VersionUpdates(catalog.UpdateRequest{
+		CurrentVersion: r.URL.Query().Get("currentVersion"),
+		CurrentBundle:  r.URL.Query().Get("currentBundle"),
+		Channel:        r.URL.Query().Get("operatorChannel"),
+		Mode:           r.URL.Query().Get("mode"),
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
