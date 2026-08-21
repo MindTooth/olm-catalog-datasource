@@ -57,10 +57,12 @@ curl --fail-with-body http://localhost:8080/readyz
 ## Recommended v2 API
 
 V2 matches the simplified configuration model. Use a catalog name and catalog
-version for the normal generated sources; use a source ID only for an exact
-custom source or override. Catalog versions accept both `4.22` and `v4.22`;
-both forms select the same catalog. Responses list the canonical form without
-the prefix.
+version for normal generated sources. Generated source IDs are also supported
+as exact-source inputs through `/v2/sources/{source}`; use that route for a
+custom source or override as well. Catalog versions accept both `4.22` and
+`v4.22`; both forms select the same catalog. Responses list the canonical form
+without the prefix. Percent-encode reserved path characters in a source ID,
+for example `team%2Fprivate`.
 
 | Purpose | Generated catalog route | Exact source route |
 | --- | --- | --- |

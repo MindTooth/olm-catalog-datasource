@@ -423,3 +423,41 @@ func TestV2CatalogAndSourceRoutes(t *testing.T) {
 		t.Fatalf("invalid package include status = %d, want %d", res.Code, http.StatusBadRequest)
 	}
 }
+
+func TestV2SourceRoutesSupportEscapedSourceID(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "refresh-token")
+	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	source := catalog.Source{ID: "team/private", Image: ""}
+	svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tokenFile})
+	svc.snapshots[source.ID] = &catalog.Snapshot{Source: source, Packages: map[string]*catalog.Package{
+		"gitops": {Name: "gitops", DefaultChannel: "stable", Bundles: map[string]*catalog.Bundle{}, Channels: map[string]*catalog.Channel{}},
+	}}
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/v2/sources/team%2Fprivate"},
+		{method: http.MethodGet, path: "/v2/sources/team%2Fprivate/packages"},
+		{method: http.MethodGet, path: "/v2/sources/team%2Fprivate/packages/gitops"},
+		{method: http.MethodPost, path: "/v2/sources/team%2Fprivate/refresh"},
+	} {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			if tc.method == http.MethodPost {
+				req.Header.Set("Authorization", "Bearer test-token")
+			}
+			res := httptest.NewRecorder()
+			svc.Handler().ServeHTTP(res, req)
+			want := http.StatusOK
+			if tc.method == http.MethodPost {
+				want = http.StatusAccepted
+			}
+			if res.Code != want {
+				t.Fatalf("status = %d, want %d; body = %s", res.Code, want, res.Body.String())
+			}
+		})
+	}
+}
