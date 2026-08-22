@@ -4,7 +4,7 @@ This chart deploys the datasource on Kubernetes and OpenShift with a `restricted
 
 ## Prerequisites
 
-Create a registry authentication Secret and a ConfigMap or Secret containing the approved `containers/image` `policy.json`. The chart deliberately does not render credentials or an insecure image policy.
+Create a registry authentication Secret when required by the registry. For image signature policy, either reference an existing ConfigMap or Secret containing `policy.json`, or let the chart generate a policy for selected Red Hat operator index versions.
 
 ## Install
 
@@ -30,7 +30,7 @@ For a checkout-based installation, use:
     helm upgrade --install olm-catalog-datasource charts/olm-catalog-datasource -f charts/olm-catalog-datasource/values-openshift.yaml
 
 `values-openshift.yaml` must set a released application image, at least one
-catalog channel or exact source, and the existing policy object. Registry auth
+catalog channel or exact source, and a signature policy source. Registry auth
 and refresh-token Secrets are optional references.
 
 The common catalog configuration is:
@@ -44,6 +44,26 @@ This creates the standard Red Hat, certified, and community sources. Set
 `linux/amd64`; `config.sources` supports exact replacements and custom sources.
 See the project [configuration guide](../../docs/CONFIGURATION.md) for the
 normalization and precedence rules.
+
+### Generated operator index policy
+
+Instead of supplying an existing policy object, the chart can generate a restrictive `containers/image` policy that rejects images by default and permits the selected Red Hat operator index tags with `insecureAcceptAnything`:
+
+    config:
+      channels:
+        - "4.22"
+      # Empty selects redhat, certified, and community.
+      catalogs: []
+
+    signaturePolicy:
+      operatorVersions:
+        - "4.21"
+        - "4.22"
+      existingConfigMap: ""
+      existingSecret: ""
+      key: policy.json
+
+Each version is converted to an exact `vX.Y` policy scope for the built-in operator index repositories selected by `config.catalogs`. `operatorVersions`, `existingConfigMap`, and `existingSecret` are mutually exclusive.
 
 The chart version and application version are independent. The default image tag is the chart `appVersion` (`1.0.0` for chart `0.2.1`); override it with `image.tag`, or preferably pin an immutable `image.digest`.
 
