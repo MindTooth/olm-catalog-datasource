@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
@@ -480,21 +479,21 @@ func TestCatalogRouteContracts(t *testing.T) {
 		name, method, path string
 		want               int
 		allow              string
-		contains           string
+		assert             func(*testing.T, *httptest.ResponseRecorder)
 	}{
-		{name: "list v1 catalogs", method: http.MethodGet, path: "/v1/catalogs", want: http.StatusOK, contains: `"catalogs"`},
-		{name: "list packages with paging", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages?prefix=git&limit=1", want: http.StatusOK, contains: `"limit":1`},
-		{name: "version updates", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/updates?channel=stable&currentBundle=v1", want: http.StatusOK, contains: `"version":"1.1.0"`},
-		{name: "channel updates", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/channel-updates?currentChannel=stable&currentBundle=v1&selection=next", want: http.StatusOK, contains: `"version":"stable-2"`},
-		{name: "bundles filtered by channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/bundles?channel=stable", want: http.StatusOK, contains: `"image":"registry.example/gitops:v1"`},
+		{name: "list v1 catalogs", method: http.MethodGet, path: "/v1/catalogs", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Catalogs []SourceStatus `json:"catalogs"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || len(body.Catalogs) != 1 || body.Catalogs[0].Source.ID != source.ID { t.Fatalf("unexpected catalogs: %#v, error: %v", body, err) } }},
+		{name: "list packages with paging", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages?prefix=git&limit=1", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Packages []struct{ Name string `json:"name"` }; Limit int `json:"limit"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || body.Limit != 1 || len(body.Packages) != 1 || body.Packages[0].Name != "gitops" { t.Fatalf("unexpected packages: %#v, error: %v", body, err) } }},
+		{name: "version updates", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/updates?channel=stable&currentBundle=v1", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Releases []release `json:"releases"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || len(body.Releases) != 2 || body.Releases[0].Version != "1.0.0" || body.Releases[1].Version != "1.1.0" { t.Fatalf("unexpected updates: %#v, error: %v", body, err) } }},
+		{name: "channel updates", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/channel-updates?currentChannel=stable&currentBundle=v1&selection=next", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Releases []release `json:"releases"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || len(body.Releases) != 2 || body.Releases[0].Version != "stable" || body.Releases[1].Version != "stable-2" { t.Fatalf("unexpected channel updates: %#v, error: %v", body, err) } }},
+		{name: "bundles filtered by channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/bundles?channel=stable", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Bundles []struct{ Name, Image string }; Package string `json:"package"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || body.Package != "gitops" || len(body.Bundles) != 2 || body.Bundles[0].Name != "v1" || body.Bundles[0].Image != "registry.example/gitops:v1" || body.Bundles[1].Name != "v2" { t.Fatalf("unexpected bundles: %#v, error: %v", body, err) } }},
 		{name: "unknown bundle channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/bundles?channel=missing", want: http.StatusNotFound},
-		{name: "graph filtered by channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/graph?channel=stable", want: http.StatusOK, contains: `"stable"`},
+		{name: "graph filtered by channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/graph?channel=stable", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Package string `json:"package"`; Channels []struct { Name string `json:"name"`; Entries []catalog.Entry `json:"entries"` } `json:"channels"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || body.Package != "gitops" || len(body.Channels) != 1 || body.Channels[0].Name != "stable" || len(body.Channels[0].Entries) != 2 || body.Channels[0].Entries[1].Replaces != "v1" { t.Fatalf("unexpected graph: %#v, error: %v", body, err) } }},
 		{name: "unknown graph channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/graph?channel=missing", want: http.StatusNotFound},
-		{name: "invalid resolve reports reason", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/resolve?channel=stable", want: http.StatusOK, contains: `"valid":false`},
+		{name: "invalid resolve reports reason", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/resolve?channel=stable", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Valid bool `json:"valid"`; Reason string `json:"reason"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || body.Valid || body.Reason == "" { t.Fatalf("unexpected resolve response: %#v, error: %v", body, err) } }},
 		{name: "unavailable catalog", method: http.MethodGet, path: "/v1/catalogs/missing/packages", want: http.StatusServiceUnavailable},
 		{name: "missing package", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/missing/bundles", want: http.StatusNotFound},
 		{name: "v1 wrong method", method: http.MethodPost, path: "/v1/catalogs", want: http.StatusMethodNotAllowed, allow: http.MethodGet},
-		{name: "list v2 sources", method: http.MethodGet, path: "/v2/sources", want: http.StatusOK, contains: `"sources"`},
+		{name: "list v2 sources", method: http.MethodGet, path: "/v2/sources", want: http.StatusOK, assert: func(t *testing.T, res *httptest.ResponseRecorder) { var body struct{ Sources []SourceStatus `json:"sources"` }; if err := json.NewDecoder(res.Body).Decode(&body); err != nil || len(body.Sources) != 1 || body.Sources[0].Source.ID != source.ID { t.Fatalf("unexpected sources: %#v, error: %v", body, err) } }},
 		{name: "invalid v2 catalog version", method: http.MethodGet, path: "/v2/catalogs/community/4.20.1", want: http.StatusNotFound},
 		{name: "v2 wrong method", method: http.MethodPost, path: "/v2/catalogs", want: http.StatusMethodNotAllowed, allow: http.MethodGet},
 		{name: "unknown v2 package action", method: http.MethodGet, path: "/v2/catalogs/community/4.20/packages/gitops/bundles", want: http.StatusNotFound},
@@ -508,8 +507,8 @@ func TestCatalogRouteContracts(t *testing.T) {
 			if tc.allow != "" && res.Header().Get("Allow") != tc.allow {
 				t.Errorf("Allow = %q, want %q", res.Header().Get("Allow"), tc.allow)
 			}
-			if tc.contains != "" && !strings.Contains(res.Body.String(), tc.contains) {
-				t.Errorf("body = %s, want substring %q", res.Body.String(), tc.contains)
+			if tc.assert != nil {
+				tc.assert(t, res)
 			}
 		})
 	}
