@@ -89,7 +89,9 @@ spec:
         - name: config
           configMap: {name: {{ include "olm-catalog-datasource.fullname" . }}}
         - name: policy
-          {{- if .Values.signaturePolicy.existingConfigMap }}
+          {{- if .Values.signaturePolicy.operatorVersions }}
+          configMap: {name: {{ include "olm-catalog-datasource.fullname" . }}-signature-policy}
+          {{- else if .Values.signaturePolicy.existingConfigMap }}
           configMap: {name: {{ .Values.signaturePolicy.existingConfigMap }}}
           {{- else }}
           secret: {secretName: {{ .Values.signaturePolicy.existingSecret }}}
