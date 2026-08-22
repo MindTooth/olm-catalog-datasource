@@ -65,7 +65,7 @@
         },
         "existingConfigMap": {"type": "string"},
         "existingSecret": {"type": "string"},
-        "key": {"type": "string", "minLength": 1}
+        "key": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^(?!\\.\\.?$)(?!\\.\\.)[A-Za-z0-9._-]+$"}
       },
       "oneOf": [
         {
