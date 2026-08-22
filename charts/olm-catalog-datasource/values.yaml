@@ -30,6 +30,9 @@ registryAuth:
   existingSecret: ""
   key: auth.json
 signaturePolicy:
+  # Generate an insecureAcceptAnything policy for the selected operator index versions.
+  # Versions are rendered as exact vX.Y tags for the selected built-in catalogs.
+  operatorVersions: []
   existingConfigMap: ""
   existingSecret: ""
   key: policy.json
