@@ -3,6 +3,22 @@ entries:
   olm-catalog-datasource:
   - apiVersion: v2
     appVersion: 1.0.0
+    created: "2026-08-22T10:47:00.5873072Z"
+    description: OpenShift-ready deployment for the OLM catalog datasource
+    digest: 15f8e33b5956875718b34536da988a2cf53feff2c0c792d482c45ab7cdafda1d
+    home: https://github.com/MindTooth/olm-catalog-datasource
+    kubeVersion: '>=1.28.0-0'
+    maintainers:
+    - name: MindTooth
+    name: olm-catalog-datasource
+    sources:
+    - https://github.com/MindTooth/olm-catalog-datasource
+    type: application
+    urls:
+    - https://github.com/MindTooth/olm-catalog-datasource/releases/download/chart-olm-catalog-datasource-0.3.0/olm-catalog-datasource-0.3.0.tgz
+    version: 0.3.0
+  - apiVersion: v2
+    appVersion: 1.0.0
     created: "2026-08-21T16:36:51.555196527Z"
     description: OpenShift-ready deployment for the OLM catalog datasource
     digest: a35621d713b439bc98568f3ecb89730dbd88665512e22ec44544753db4de4069
@@ -33,4 +49,4 @@ entries:
     urls:
     - https://github.com/MindTooth/olm-catalog-datasource/releases/download/chart-olm-catalog-datasource-0.2.0/olm-catalog-datasource-0.2.0.tgz
     version: 0.2.0
-generated: "2026-08-21T16:36:51.555205644Z"
+generated: "2026-08-22T10:47:00.587319658Z"
