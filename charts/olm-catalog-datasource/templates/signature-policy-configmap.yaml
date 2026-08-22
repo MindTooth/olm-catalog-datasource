@@ -1,0 +1,37 @@
+{{- if .Values.signaturePolicy.operatorVersions }}
+{{- if or .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret }}
+{{- fail "signaturePolicy.operatorVersions cannot be combined with an existing policy source" }}
+{{- end }}
+{{- $catalogs := .Values.config.catalogs | default (list "redhat" "certified" "community") }}
+{{- $repositories := dict "redhat" "redhat-operator-index" "certified" "certified-operator-index" "community" "community-operator-index" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "olm-catalog-datasource.fullname" . }}-signature-policy
+  labels:
+    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+data:
+  {{ .Values.signaturePolicy.key }}: |
+    {
+      "default": [
+        {
+          "type": "reject"
+        }
+      ],
+      "transports": {
+        "docker": {
+{{- $entries := list }}
+{{- range $version := .Values.signaturePolicy.operatorVersions }}
+{{- range $catalog := $catalogs }}
+{{- $repository := index $repositories $catalog }}
+{{- $tag := printf "v%s" (trimPrefix "v" $version) }}
+{{- $scope := printf "registry.redhat.io/redhat/%s:%s" $repository $tag }}
+{{- $entry := printf "%s: [\n  {\n    \"type\": \"insecureAcceptAnything\"\n  }\n]" ($scope | quote) }}
+{{- $entries = append $entries $entry }}
+{{- end }}
+{{- end }}
+{{ join ",\n" $entries | indent 10 }}
+        }
+      }
+    }
+{{- end }}
