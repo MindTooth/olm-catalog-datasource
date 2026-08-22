@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
@@ -457,6 +458,91 @@ func TestV2SourceRoutesSupportEscapedSourceID(t *testing.T) {
 			}
 			if res.Code != want {
 				t.Fatalf("status = %d, want %d; body = %s", res.Code, want, res.Body.String())
+			}
+		})
+	}
+}
+
+func TestCatalogRouteContracts(t *testing.T) {
+	source := catalog.Source{ID: "community-v4.20", Image: "registry.example/community:v4.20"}
+	packageData := &catalog.Package{Name: "gitops", DefaultChannel: "stable", Bundles: map[string]*catalog.Bundle{
+		"v1": {Name: "v1", Version: "1.0.0", Image: "registry.example/gitops:v1"},
+		"v2": {Name: "v2", Version: "1.1.0", Deprecated: true},
+	}, Channels: map[string]*catalog.Channel{
+		"stable":   {Name: "stable", Entries: []catalog.Entry{{Name: "v1"}, {Name: "v2", Replaces: "v1"}}},
+		"stable-2": {Name: "stable-2", Entries: []catalog.Entry{{Name: "v2", Replaces: "v1"}}},
+	}}
+	svc := New(Config{Sources: []catalog.Source{source}})
+	svc.snapshots[source.ID] = &catalog.Snapshot{Source: source, Packages: map[string]*catalog.Package{"gitops": packageData}}
+	svc.statuses[source.ID] = SourceStatus{Source: source, Available: true, PackageCount: 1}
+
+	for _, tc := range []struct {
+		name, method, path string
+		want               int
+		allow              string
+		contains           string
+	}{
+		{name: "list v1 catalogs", method: http.MethodGet, path: "/v1/catalogs", want: http.StatusOK, contains: `"catalogs"`},
+		{name: "list packages with paging", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages?prefix=git&limit=1", want: http.StatusOK, contains: `"limit":1`},
+		{name: "version updates", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/updates?channel=stable&currentBundle=v1", want: http.StatusOK, contains: `"version":"1.1.0"`},
+		{name: "channel updates", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/channel-updates?currentChannel=stable&currentBundle=v1&selection=next", want: http.StatusOK, contains: `"version":"stable-2"`},
+		{name: "bundles filtered by channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/bundles?channel=stable", want: http.StatusOK, contains: `"image":"registry.example/gitops:v1"`},
+		{name: "unknown bundle channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/bundles?channel=missing", want: http.StatusNotFound},
+		{name: "graph filtered by channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/graph?channel=stable", want: http.StatusOK, contains: `"stable"`},
+		{name: "unknown graph channel", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/graph?channel=missing", want: http.StatusNotFound},
+		{name: "invalid resolve reports reason", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/gitops/resolve?channel=stable", want: http.StatusOK, contains: `"valid":false`},
+		{name: "unavailable catalog", method: http.MethodGet, path: "/v1/catalogs/missing/packages", want: http.StatusServiceUnavailable},
+		{name: "missing package", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/packages/missing/bundles", want: http.StatusNotFound},
+		{name: "v1 wrong method", method: http.MethodPost, path: "/v1/catalogs", want: http.StatusMethodNotAllowed, allow: http.MethodGet},
+		{name: "list v2 sources", method: http.MethodGet, path: "/v2/sources", want: http.StatusOK, contains: `"sources"`},
+		{name: "invalid v2 catalog version", method: http.MethodGet, path: "/v2/catalogs/community/4.20.1", want: http.StatusNotFound},
+		{name: "v2 wrong method", method: http.MethodPost, path: "/v2/catalogs", want: http.StatusMethodNotAllowed, allow: http.MethodGet},
+		{name: "unknown v2 package action", method: http.MethodGet, path: "/v2/catalogs/community/4.20/packages/gitops/bundles", want: http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res := httptest.NewRecorder()
+			svc.Handler().ServeHTTP(res, httptest.NewRequest(tc.method, tc.path, nil))
+			if res.Code != tc.want {
+				t.Fatalf("%s %s status = %d, want %d; body = %s", tc.method, tc.path, res.Code, tc.want, res.Body.String())
+			}
+			if tc.allow != "" && res.Header().Get("Allow") != tc.allow {
+				t.Errorf("Allow = %q, want %q", res.Header().Get("Allow"), tc.allow)
+			}
+			if tc.contains != "" && !strings.Contains(res.Body.String(), tc.contains) {
+				t.Errorf("body = %s, want substring %q", res.Body.String(), tc.contains)
+			}
+		})
+	}
+}
+
+func TestRefreshRouteErrorContracts(t *testing.T) {
+	source := catalog.Source{ID: "community-v4.20"}
+	emptyToken := filepath.Join(t.TempDir(), "empty-token")
+	if err := os.WriteFile(emptyToken, []byte(" \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name, method, path string
+		tokenFile          string
+		want               int
+		allow              string
+	}{
+		{name: "v1 all refresh requires post", method: http.MethodGet, path: "/v1/refresh", want: http.StatusMethodNotAllowed, allow: http.MethodPost},
+		{name: "v1 source refresh requires post", method: http.MethodGet, path: "/v1/catalogs/community-v4.20/refresh", want: http.StatusMethodNotAllowed, allow: http.MethodPost},
+		{name: "v2 all refresh requires post", method: http.MethodGet, path: "/v2/catalogs/refresh", want: http.StatusMethodNotAllowed, allow: http.MethodPost},
+		{name: "v2 source refresh requires post", method: http.MethodGet, path: "/v2/catalogs/community/4.20/refresh", want: http.StatusMethodNotAllowed, allow: http.MethodPost},
+		{name: "empty token is unavailable", method: http.MethodPost, path: "/v2/catalogs/community/4.20/refresh", tokenFile: emptyToken, want: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tc.tokenFile})
+			res := httptest.NewRecorder()
+			svc.Handler().ServeHTTP(res, httptest.NewRequest(tc.method, tc.path, nil))
+			if res.Code != tc.want {
+				t.Fatalf("%s %s status = %d, want %d; body = %s", tc.method, tc.path, res.Code, tc.want, res.Body.String())
+			}
+			if tc.allow != "" && res.Header().Get("Allow") != tc.allow {
+				t.Errorf("Allow = %q, want %q", res.Header().Get("Allow"), tc.allow)
 			}
 		})
 	}
