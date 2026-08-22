@@ -61,7 +61,7 @@
         "operatorVersions": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string", "pattern": "^v?[1-9][0-9]*\\.(?:0|[1-9][0-9]*)$"}
+          "items": {"type": "string", "pattern": "^v[1-9][0-9]*\\.(?:0|[1-9][0-9]*)$"}
         },
         "existingConfigMap": {"type": "string"},
         "existingSecret": {"type": "string"},
