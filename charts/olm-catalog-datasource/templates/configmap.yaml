@@ -1,8 +1,11 @@
-{{- if not (or .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret) }}
-{{- fail "signaturePolicy.existingConfigMap or signaturePolicy.existingSecret is required" }}
+{{- if not (or .Values.signaturePolicy.operatorVersions .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret) }}
+{{- fail "signaturePolicy.operatorVersions, signaturePolicy.existingConfigMap, or signaturePolicy.existingSecret is required" }}
 {{- end }}
 {{- if and .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret }}
 {{- fail "configure only one signature policy source" }}
+{{- end }}
+{{- if and .Values.signaturePolicy.operatorVersions (or .Values.signaturePolicy.existingConfigMap .Values.signaturePolicy.existingSecret) }}
+{{- fail "signaturePolicy.operatorVersions cannot be combined with an existing policy source" }}
 {{- end }}
 apiVersion: v1
 kind: ConfigMap
