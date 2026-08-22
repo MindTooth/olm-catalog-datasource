@@ -467,7 +467,7 @@ func TestCatalogRouteContracts(t *testing.T) {
 	source := catalog.Source{ID: "community-v4.20", Image: "registry.example/community:v4.20"}
 	packageData := &catalog.Package{Name: "gitops", DefaultChannel: "stable", Bundles: map[string]*catalog.Bundle{
 		"v1": {Name: "v1", Version: "1.0.0", Image: "registry.example/gitops:v1"},
-		"v2": {Name: "v2", Version: "1.1.0", Deprecated: true},
+		"v2": {Name: "v2", Version: "1.1.0"},
 	}, Channels: map[string]*catalog.Channel{
 		"stable":   {Name: "stable", Entries: []catalog.Entry{{Name: "v1"}, {Name: "v2", Replaces: "v1"}}},
 		"stable-2": {Name: "stable-2", Entries: []catalog.Entry{{Name: "v2", Replaces: "v1"}}},
