@@ -3,5 +3,17 @@
 
   "extends": ["github>MindTooth/renovate-default-preset"],
 
-  "enabledManagers": ["dockerfile", "github-actions", "gomod", "npm"]
+  "enabledManagers": ["dockerfile", "github-actions", "gomod", "npm"],
+
+  "packageRules": [
+    {
+      "description": "Group Red Hat UBI image updates",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "/^(?:registry\\.access\\.redhat\\.com|registry\\.redhat\\.io)\\/ubi\\d+\\/.+$/"
+      ],
+      "groupName": "Red Hat UBI images",
+      "groupSlug": "red-hat-ubi-images"
+    }
+  ]
 }
