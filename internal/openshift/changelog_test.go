@@ -9,6 +9,26 @@ import (
 	"testing"
 )
 
+func TestChangelogURLForArchitecture(t *testing.T) {
+	for _, tc := range []struct {
+		architecture string
+		want         string
+		ok           bool
+	}{
+		{architecture: "amd64", want: "https://amd64.ocp.releases.ci.openshift.org/changelog", ok: true},
+		{architecture: "arm64", want: "https://arm64.ocp.releases.ci.openshift.org/changelog", ok: true},
+		{architecture: "ppc64le", want: "https://ppc64le.ocp.releases.ci.openshift.org/changelog", ok: true},
+		{architecture: "s390x", want: "https://s390x.ocp.releases.ci.openshift.org/changelog", ok: true},
+		{architecture: "multi", want: "https://multi.ocp.releases.ci.openshift.org/changelog", ok: true},
+		{architecture: "example.com"},
+	} {
+		got, ok := changelogURLForArchitecture(tc.architecture)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("changelogURLForArchitecture(%q) = %q, %v; want %q, %v", tc.architecture, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
 func TestEnrichChangelogsAddsPerReleaseContentAndCachesIt(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
