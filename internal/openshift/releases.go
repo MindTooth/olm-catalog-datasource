@@ -23,8 +23,10 @@ const (
 var ErrCurrentVersionNotFound = errors.New("current release is not present in channel")
 
 type Client struct {
-	GraphURL   string
-	HTTPClient *http.Client
+	GraphURL       string
+	ChangelogURL   string
+	HTTPClient     *http.Client
+	ChangelogCache *ChangelogCache
 }
 
 type UpdateRequest struct {
@@ -35,9 +37,10 @@ type UpdateRequest struct {
 }
 
 type Release struct {
-	Version      string `json:"version"`
-	ChangelogURL string `json:"changelogUrl,omitempty"`
-	Digest       string `json:"digest,omitempty"`
+	Version          string `json:"version"`
+	ChangelogContent string `json:"changelogContent,omitempty"`
+	ChangelogURL     string `json:"changelogUrl,omitempty"`
+	Digest           string `json:"digest,omitempty"`
 }
 
 type graph struct {
@@ -136,6 +139,8 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 	} else if req.Lag > 0 {
 		targets = targets[:len(targets)-req.Lag]
 	}
+
+	c.enrichChangelogs(ctx, req.Architecture, targets)
 
 	out := append([]Release{releaseFromNode(g.Nodes[current])}, targets...)
 	sortReleases(out)
