@@ -56,6 +56,56 @@ func TestEnrichChangelogsAddsPerReleaseContentAndCachesIt(t *testing.T) {
 	}
 }
 
+func TestChangelogInitializesSuppliedCache(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("changes"))
+	}))
+	t.Cleanup(server.Close)
+
+	cache := &ChangelogCache{}
+	client := Client{ChangelogURL: server.URL, HTTPClient: server.Client(), ChangelogCache: cache}
+	content, err := client.changelog(context.Background(), "multi", "4.22.11", "4.22.12")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content != "changes" {
+		t.Fatalf("changelog = %q", content)
+	}
+	if cache.entries == nil || cache.pending == nil {
+		t.Fatal("cache maps were not initialized")
+	}
+}
+
+func TestChangelogCacheSeparatesEndpoints(t *testing.T) {
+	newServer := func(content string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(content))
+		}))
+	}
+	first := newServer("first")
+	second := newServer("second")
+	t.Cleanup(first.Close)
+	t.Cleanup(second.Close)
+
+	cache := NewChangelogCache()
+	for _, tc := range []struct {
+		server *httptest.Server
+		want   string
+	}{
+		{server: first, want: "first"},
+		{server: second, want: "second"},
+	} {
+		client := Client{ChangelogURL: tc.server.URL, HTTPClient: tc.server.Client(), ChangelogCache: cache}
+		got, err := client.changelog(context.Background(), "multi", "4.22.11", "4.22.12")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != tc.want {
+			t.Fatalf("changelog = %q, want %q", got, tc.want)
+		}
+	}
+}
+
 func TestEnrichChangelogsCoalescesConcurrentRequests(t *testing.T) {
 	var requests atomic.Int32
 	started := make(chan struct{})
