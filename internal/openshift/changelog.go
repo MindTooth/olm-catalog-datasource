@@ -13,6 +13,8 @@ import (
 
 const maxChangelogBytes = 512 << 10
 
+var defaultChangelogCache = NewChangelogCache()
+
 type ChangelogCache struct {
 	mu      sync.Mutex
 	entries map[string]string
@@ -32,6 +34,11 @@ func NewChangelogCache() *ChangelogCache {
 }
 
 func (c Client) enrichChangelogs(ctx context.Context, architecture string, releases []Release) {
+	// A custom graph does not imply a matching release-controller endpoint.
+	// Callers using one can opt in by supplying ChangelogURL explicitly.
+	if c.GraphURL != "" && c.GraphURL != DefaultGraphURL && c.ChangelogURL == "" {
+		return
+	}
 	for i := range releases {
 		from, ok := previousZStream(releases[i].Version)
 		if !ok {
@@ -59,7 +66,7 @@ func previousZStream(version string) (string, bool) {
 func (c Client) changelog(ctx context.Context, architecture, from, to string) (string, error) {
 	cache := c.ChangelogCache
 	if cache == nil {
-		return c.fetchChangelog(ctx, architecture, from, to)
+		cache = defaultChangelogCache
 	}
 	key := architecture + "\x00" + from + "\x00" + to
 
