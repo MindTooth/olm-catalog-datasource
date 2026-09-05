@@ -33,6 +33,23 @@ func NewChangelogCache() *ChangelogCache {
 	}
 }
 
+func changelogURLForArchitecture(architecture string) (string, bool) {
+	switch architecture {
+	case "amd64":
+		return "https://amd64.ocp.releases.ci.openshift.org/changelog", true
+	case "arm64":
+		return "https://arm64.ocp.releases.ci.openshift.org/changelog", true
+	case "ppc64le":
+		return "https://ppc64le.ocp.releases.ci.openshift.org/changelog", true
+	case "s390x":
+		return "https://s390x.ocp.releases.ci.openshift.org/changelog", true
+	case "multi":
+		return "https://multi.ocp.releases.ci.openshift.org/changelog", true
+	default:
+		return "", false
+	}
+}
+
 func (c Client) enrichChangelogs(ctx context.Context, architecture string, releases []Release) {
 	// A custom graph does not imply a matching release-controller endpoint.
 	// Callers using one can opt in by supplying ChangelogURL explicitly.
@@ -107,7 +124,11 @@ func (c Client) changelog(ctx context.Context, architecture, from, to string) (s
 func (c Client) fetchChangelog(ctx context.Context, architecture, from, to string) (string, error) {
 	base := c.ChangelogURL
 	if base == "" {
-		base = "https://" + architecture + ".ocp.releases.ci.openshift.org/changelog"
+		var ok bool
+		base, ok = changelogURLForArchitecture(architecture)
+		if !ok {
+			return "", fmt.Errorf("unsupported OpenShift architecture %q", architecture)
+		}
 	}
 	u, err := url.Parse(base)
 	if err != nil {
