@@ -50,6 +50,17 @@ func changelogURLForArchitecture(architecture string) (string, bool) {
 	}
 }
 
+func (c Client) changelogBaseURL(architecture string) (string, error) {
+	if c.ChangelogURL != "" {
+		return c.ChangelogURL, nil
+	}
+	base, ok := changelogURLForArchitecture(architecture)
+	if !ok {
+		return "", fmt.Errorf("unsupported OpenShift architecture %q", architecture)
+	}
+	return base, nil
+}
+
 func (c Client) enrichChangelogs(ctx context.Context, architecture string, releases []Release) {
 	// A custom graph does not imply a matching release-controller endpoint.
 	// Callers using one can opt in by supplying ChangelogURL explicitly.
@@ -81,13 +92,24 @@ func previousZStream(version string) (string, bool) {
 }
 
 func (c Client) changelog(ctx context.Context, architecture, from, to string) (string, error) {
+	base, err := c.changelogBaseURL(architecture)
+	if err != nil {
+		return "", err
+	}
+
 	cache := c.ChangelogCache
 	if cache == nil {
 		cache = defaultChangelogCache
 	}
-	key := architecture + "\x00" + from + "\x00" + to
+	key := base + "\x00" + architecture + "\x00" + from + "\x00" + to
 
 	cache.mu.Lock()
+	if cache.entries == nil {
+		cache.entries = make(map[string]string)
+	}
+	if cache.pending == nil {
+		cache.pending = make(map[string]*changelogCall)
+	}
 	if content, ok := cache.entries[key]; ok {
 		cache.mu.Unlock()
 		return content, nil
@@ -108,7 +130,7 @@ func (c Client) changelog(ctx context.Context, architecture, from, to string) (s
 	cache.pending[key] = call
 	cache.mu.Unlock()
 
-	content, err := c.fetchChangelog(ctx, architecture, from, to)
+	content, err := c.fetchChangelog(ctx, base, from, to)
 
 	cache.mu.Lock()
 	delete(cache.pending, key)
@@ -121,15 +143,7 @@ func (c Client) changelog(ctx context.Context, architecture, from, to string) (s
 	return content, err
 }
 
-func (c Client) fetchChangelog(ctx context.Context, architecture, from, to string) (string, error) {
-	base := c.ChangelogURL
-	if base == "" {
-		var ok bool
-		base, ok = changelogURLForArchitecture(architecture)
-		if !ok {
-			return "", fmt.Errorf("unsupported OpenShift architecture %q", architecture)
-		}
-	}
+func (c Client) fetchChangelog(ctx context.Context, base, from, to string) (string, error) {
 	u, err := url.Parse(base)
 	if err != nil {
 		return "", fmt.Errorf("parse OpenShift changelog URL: %w", err)
