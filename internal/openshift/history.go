@@ -2,6 +2,7 @@ package openshift
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,13 +23,12 @@ type releaseHistoryEntry struct {
 	advisoryURL string
 }
 
-// enrichChangelogs keeps update eligibility in Cincinnati, but builds each
-// target's notes from every accepted release in (currentVersion, target].
-func (c Client) enrichChangelogs(ctx context.Context, architecture, currentVersion string, graphNodes []node, targets []Release) {
+// enrichChangelogHistory keeps update eligibility in Cincinnati, but builds
+// each target's notes from every accepted release in (currentVersion, target].
+func (c Client) enrichChangelogHistory(ctx context.Context, architecture, currentVersion string, graphNodes []node, targets []Release) {
 	if len(targets) == 0 {
 		return
 	}
-
 	ctx, cancel := context.WithTimeout(ctx, changelogFetchTimeout)
 	defer cancel()
 
@@ -40,19 +40,14 @@ func (c Client) enrichChangelogs(ctx context.Context, architecture, currentVersi
 	if err != nil {
 		return
 	}
-
 	graphAdvisories := make(map[string]string, len(graphNodes))
 	for _, n := range graphNodes {
 		if _, ok := advisoryIDFromURL(n.Metadata["url"]); ok {
 			graphAdvisories[n.Version] = n.Metadata["url"]
 		}
 	}
-
 	for i := range targets {
 		history := releasesBetween(entries, currentVersion, targets[i].Version)
-		if len(history) == 0 {
-			continue
-		}
 		for j := range history {
 			history[j].advisoryURL = graphAdvisories[history[j].version]
 		}
@@ -91,12 +86,15 @@ func (c Client) fetchReleaseStream(ctx context.Context, streamURL string) ([]rel
 		return nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("release stream returned %s", res.Status)
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, maxReleaseStreamBytes+1))
-	if err != nil || len(body) > maxReleaseStreamBytes {
+	if err != nil {
 		return nil, fmt.Errorf("read release stream: %w", err)
+	}
+	if len(body) > maxReleaseStreamBytes {
+		return nil, errors.New("release stream exceeds size limit")
 	}
 	return parseReleaseStream(strings.NewReader(string(body)), streamURL)
 }
@@ -198,7 +196,7 @@ func (c Client) fetchReleaseAdvisoryURL(ctx context.Context, releaseURL string) 
 		return "", err
 	}
 	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return "", fmt.Errorf("release page returned %s", res.Status)
 	}
 	doc, err := html.Parse(io.LimitReader(res.Body, maxReleaseStreamBytes))
@@ -224,7 +222,7 @@ func (c Client) fetchReleaseAdvisoryURL(ctx context.Context, releaseURL string) 
 	}
 	walk(doc)
 	if found == "" {
-		return "", fmt.Errorf("Red Hat advisory link not found")
+		return "", errors.New("Red Hat advisory link not found")
 	}
 	return found, nil
 }
