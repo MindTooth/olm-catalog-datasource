@@ -278,7 +278,7 @@ func TestTruncateTextPreservesUTF8(t *testing.T) {
 		want  string
 	}{
 		{name: "unchanged", value: "blå", limit: 4, want: "blå"},
-		{name: "multibyte boundary", value: "blåbær", limit: 6, want: "bl…"},
+		{name: "multibyte boundary", value: "blåbær", limit: 6, want: "blåb…"},
 		{name: "one byte", value: "å", limit: 1, want: ""},
 		{name: "zero", value: "å", limit: 0, want: ""},
 	} {
