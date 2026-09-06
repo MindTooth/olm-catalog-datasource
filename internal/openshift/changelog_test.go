@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestParseAdvisoryHTMLRepresentativeTypes(t *testing.T) {
@@ -81,6 +82,7 @@ func TestAdvisoryIDFromURL(t *testing.T) {
 		{url: "https://access.redhat.com/errata/RHSA-2026:57365", want: "RHSA-2026:57365", ok: true},
 		{url: "https://access.redhat.com/errata/RHBA-2025:23103/", want: "RHBA-2025:23103", ok: true},
 		{url: "https://access.redhat.com/errata/RHEA-2026:0449", want: "RHEA-2026:0449", ok: true},
+		{url: "https://access.redhat.com/errata/RHSA-2026:57365?utm_source=" + strings.Repeat("x", 10_000), want: "RHSA-2026:57365", ok: true},
 		{url: "https://example.com/errata/RHSA-2026:57365"},
 		{url: "http://access.redhat.com/errata/RHSA-2026:57365"},
 		{url: "https://access.redhat.com/not-errata/RHSA-2026:57365"},
@@ -131,6 +133,29 @@ func TestEnrichChangelogsCachesAndCoalesces(t *testing.T) {
 	client.enrichChangelogs(context.Background(), releases)
 	if got := requests.Load(); got != 1 {
 		t.Fatalf("advisory requests = %d, want 1", got)
+	}
+}
+
+func TestEnrichChangelogsStripsAdvisoryURLQuery(t *testing.T) {
+	body := fixtureBody(t, "rhsa-2026-57365.html")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+
+	const canonical = "https://access.redhat.com/errata/RHSA-2026:57365"
+	releases := []Release{{Version: "4.22.11", ChangelogURL: canonical + "?tracking=" + strings.Repeat("x", maxChangelogBytes*2)}}
+	client := Client{ErrataURL: server.URL, HTTPClient: server.Client(), ChangelogCache: NewChangelogCache()}
+	client.enrichChangelogs(context.Background(), releases)
+
+	if len(releases[0].ChangelogContent) > maxChangelogBytes {
+		t.Fatalf("changelogContent length = %d", len(releases[0].ChangelogContent))
+	}
+	if !strings.Contains(releases[0].ChangelogContent, canonical) {
+		t.Fatalf("canonical advisory URL missing:\n%s", releases[0].ChangelogContent)
+	}
+	if strings.Contains(releases[0].ChangelogContent, "tracking=") {
+		t.Fatalf("advisory query leaked into changelogContent:\n%s", releases[0].ChangelogContent)
 	}
 }
 
@@ -242,6 +267,33 @@ func TestRenderAdvisoryMarkdownShortensAtEntryBoundary(t *testing.T) {
 	}
 	if strings.Count(markdown, "](") != strings.Count(markdown, ")") {
 		t.Fatalf("markdown appears truncated mid-link:\n%s", markdown)
+	}
+}
+
+func TestTruncateTextPreservesUTF8(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+		limit int
+		want  string
+	}{
+		{name: "unchanged", value: "blå", limit: 4, want: "blå"},
+		{name: "multibyte boundary", value: "blåbær", limit: 6, want: "bl…"},
+		{name: "one byte", value: "å", limit: 1, want: ""},
+		{name: "zero", value: "å", limit: 0, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := truncateText(tc.value, tc.limit)
+			if got != tc.want {
+				t.Fatalf("truncateText(%q, %d) = %q, want %q", tc.value, tc.limit, got, tc.want)
+			}
+			if !utf8.ValidString(got) {
+				t.Fatalf("truncateText(%q, %d) returned invalid UTF-8 %q", tc.value, tc.limit, got)
+			}
+			if len(got) > tc.limit {
+				t.Fatalf("truncateText(%q, %d) returned %d bytes", tc.value, tc.limit, len(got))
+			}
+		})
 	}
 }
 
