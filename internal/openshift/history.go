@@ -120,6 +120,7 @@ func parseReleaseStream(r io.Reader, streamURL string) ([]releaseHistoryEntry, e
 						entries = append(entries, releaseHistoryEntry{version: version, releaseURL: u.String()})
 					}
 				}
+			}
 		}
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
 			walk(child)
