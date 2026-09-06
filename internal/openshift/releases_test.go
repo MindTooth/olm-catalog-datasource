@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -69,6 +70,41 @@ func TestUpdatesLagCanRemoveEveryTargetButNotCurrent(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Version != "4.21.1" {
 		t.Fatalf("Updates() = %#v", got)
+	}
+}
+
+func TestUpdatesGraphGapAndMinorTransitionKeepOnlyEligibleTargets(t *testing.T) {
+	const manifestKey = "io.openshift.upgrades.graph.release.manifestref"
+	errata := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/")
+		_, _ = w.Write([]byte(advisoryHTML(id, "summary for "+id)))
+	}))
+	t.Cleanup(errata.Close)
+	graph := graphServer(t, map[string]any{
+		"nodes": []any{
+			map[string]any{"version": "4.21.18", "metadata": map[string]string{"url": "https://access.redhat.com/errata/RHBA-2026:100", manifestKey: "sha256:current"}},
+			map[string]any{"version": "4.21.19", "metadata": map[string]string{"url": "https://access.redhat.com/errata/RHBA-2026:101", manifestKey: "sha256:intermediate"}},
+			map[string]any{"version": "4.21.20", "metadata": map[string]string{"url": "https://access.redhat.com/errata/RHBA-2026:102", manifestKey: "sha256:gap-target"}},
+			map[string]any{"version": "4.22.0", "metadata": map[string]string{"url": "https://access.redhat.com/errata/RHEA-2026:103", manifestKey: "sha256:minor-target"}},
+		},
+		"edges": [][2]int{{0, 2}, {0, 3}},
+	})
+	client := Client{GraphURL: graph.URL, ErrataURL: errata.URL, HTTPClient: graph.Client(), ChangelogCache: NewChangelogCache()}
+
+	got, err := client.Updates(context.Background(), UpdateRequest{Channel: "stable-4.21", Architecture: "multi", CurrentVersion: "4.21.18"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0].Version != "4.21.18" || got[1].Version != "4.21.20" || got[2].Version != "4.22.0" {
+		t.Fatalf("Updates() = %#v", got)
+	}
+	if got[0].ChangelogContent != "" {
+		t.Fatalf("current release unexpectedly enriched: %#v", got[0])
+	}
+	for _, release := range got[1:] {
+		if release.ChangelogContent == "" || release.Digest == "" || release.ChangelogURL == "" {
+			t.Fatalf("target metadata/enrichment missing: %#v", release)
+		}
 	}
 }
 
