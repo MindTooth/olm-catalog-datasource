@@ -539,17 +539,19 @@ func truncateText(value string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
-	cut := limit
-	if limit > 1 {
-		cut--
+	const ellipsis = "…"
+	if limit <= len(ellipsis) {
+		cut := limit
+		for cut > 0 && !utf8.RuneStart(value[cut]) {
+			cut--
+		}
+		return strings.TrimSpace(value[:cut])
 	}
+	cut := limit - len(ellipsis)
 	for cut > 0 && !utf8.RuneStart(value[cut]) {
 		cut--
 	}
-	if limit <= 1 {
-		return value[:cut]
-	}
-	return strings.TrimSpace(value[:cut]) + "…"
+	return strings.TrimSpace(value[:cut]) + ellipsis
 }
 
 func normalizeSpace(value string) string {
