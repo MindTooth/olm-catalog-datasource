@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 )
@@ -116,7 +117,11 @@ func (c Client) enrichChangelogs(ctx context.Context, releases []Release) {
 			continue
 		}
 		if len(content) > remaining {
-			fallback := fmt.Sprintf("### Release advisory summary\n\n_Summary omitted to keep aggregated release notes within limits. See the [full advisory](%s)._", releases[i].ChangelogURL)
+			fallbackURL := DefaultErrataURL
+			if id, ok := advisoryIDFromURL(releases[i].ChangelogURL); ok {
+				fallbackURL += "/" + id
+			}
+			fallback := fmt.Sprintf("### Release advisory summary\n\n_Summary omitted to keep aggregated release notes within limits. See the [full advisory](%s)._", fallbackURL)
 			if len(fallback) <= remaining {
 				releases[i].ChangelogContent = fallback
 				remaining -= len(fallback)
@@ -178,6 +183,7 @@ func (c Client) changelog(ctx context.Context, advisoryID, canonicalURL string) 
 	cache.pending[key] = call
 	cache.mu.Unlock()
 
+	canonicalURL = DefaultErrataURL + "/" + advisoryID
 	content, fetchErr := c.fetchChangelog(ctx, base, advisoryID, canonicalURL)
 	err := fetchErr
 	if fetchErr != nil && hasStale {
@@ -530,10 +536,20 @@ func truncateText(value string, limit int) string {
 	if len(value) <= limit {
 		return value
 	}
-	if limit <= 1 {
-		return value[:limit]
+	if limit <= 0 {
+		return ""
 	}
-	return strings.TrimSpace(value[:limit-1]) + "…"
+	cut := limit
+	if limit > 1 {
+		cut--
+	}
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	if limit <= 1 {
+		return value[:cut]
+	}
+	return strings.TrimSpace(value[:cut]) + "…"
 }
 
 func normalizeSpace(value string) string {
