@@ -24,7 +24,7 @@ var ErrCurrentVersionNotFound = errors.New("current release is not present in ch
 
 type Client struct {
 	GraphURL       string
-	ChangelogURL   string
+	ErrataURL      string
 	HTTPClient     *http.Client
 	ChangelogCache *ChangelogCache
 }
@@ -140,7 +140,7 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 		targets = targets[:len(targets)-req.Lag]
 	}
 
-	c.enrichChangelogs(ctx, req.Architecture, targets)
+	c.enrichChangelogs(ctx, targets)
 
 	out := append([]Release{releaseFromNode(g.Nodes[current])}, targets...)
 	sortReleases(out)
