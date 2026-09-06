@@ -141,7 +141,10 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 		targets = targets[:len(targets)-req.Lag]
 	}
 
-	c.enrichChangelogHistory(ctx, req.Architecture, req.CurrentVersion, g.Nodes, targets)
+	// A custom graph does not imply a matching release-controller stream.
+	if c.GraphURL == "" || c.GraphURL == DefaultGraphURL || c.ReleaseControllerURL != "" {
+		c.enrichChangelogHistory(ctx, req.Architecture, req.CurrentVersion, g.Nodes, targets)
+	}
 
 	out := append([]Release{releaseFromNode(g.Nodes[current])}, targets...)
 	sortReleases(out)
