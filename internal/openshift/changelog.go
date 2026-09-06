@@ -17,13 +17,14 @@ import (
 )
 
 const (
-	DefaultErrataURL       = "https://access.redhat.com/errata"
-	maxErrataBytes         = 2 << 20
-	maxChangelogBytes      = 8_000
-	changelogCacheTTL      = 6 * time.Hour
-	changelogFetchTimeout  = 5 * time.Second
-	changelogConcurrency   = 4
-	shortenedNoticeReserve = 1024
+	DefaultErrataURL            = "https://access.redhat.com/errata"
+	maxErrataBytes              = 8 << 20
+	maxChangelogBytes           = 6_000
+	maxAggregateChangelogBytes  = 24_000
+	changelogCacheTTL           = 6 * time.Hour
+	changelogFetchTimeout       = 5 * time.Second
+	changelogConcurrency        = 4
+	shortenedNoticeReserve      = 1024
 )
 
 var (
@@ -107,6 +108,25 @@ func (c Client) enrichChangelogs(ctx context.Context, releases []Release) {
 		}(i, advisoryID)
 	}
 	wg.Wait()
+
+	remaining := maxAggregateChangelogBytes
+	for i := len(releases) - 1; i >= 0; i-- {
+		content := releases[i].ChangelogContent
+		if content == "" {
+			continue
+		}
+		if len(content) > remaining {
+			fallback := fmt.Sprintf("### Release advisory summary\n\n_Summary omitted to keep aggregated release notes within limits. See the [full advisory](%s)._", releases[i].ChangelogURL)
+			if len(fallback) <= remaining {
+				releases[i].ChangelogContent = fallback
+				remaining -= len(fallback)
+			} else {
+				releases[i].ChangelogContent = ""
+			}
+			continue
+		}
+		remaining -= len(content)
+	}
 }
 
 func advisoryIDFromURL(rawURL string) (string, bool) {
@@ -496,6 +516,9 @@ func textContent(n *html.Node) string {
 }
 
 func safeReferenceURL(rawURL string) string {
+	if strings.HasPrefix(rawURL, "/") {
+		return "https://access.redhat.com" + rawURL
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ""
