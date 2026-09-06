@@ -28,10 +28,12 @@ The raw advisory response is bounded to 8 MiB because public OpenShift advisory 
 
 Successful summaries are cached in memory by effective advisory source and advisory identifier. Concurrent requests for the same advisory are coalesced. Entries are revalidated after six hours because Red Hat advisories can be revised; if revalidation fails, the last successful cached summary is served. A cold cache fetches synchronously. A failed first fetch is not cached, so a later Renovate pass can retry. Restarting the service clears the cache. There is no background worker or persistent advisory cache.
 
-## Completeness
+## Completeness and consumer contract
 
-The embedded text is deliberately labelled **Release advisory summary**. It is not a complete source changelog and it does not claim to describe every change between the installed and target releases.
+The embedded text is deliberately labelled **Release advisory summary**. Each release object's `changelogContent` describes only the advisory associated with that release. It is not a complete source changelog and it does not claim to describe every component change or every intermediate release between the installed and target versions.
 
-A Cincinnati edge can legitimately connect `current -> target` while omitting an intermediate patch from the returned candidates. The target advisory can also refer to separate RPM/container advisories. This service does not add those intermediate versions to `releases`, because doing so would misrepresent update eligibility.
+The Renovate consumer selects applicable release objects in `(currentVersion, newVersion]` and combines their release-level content newest-first. This producer therefore must not pre-aggregate current-to-target history into each target's `changelogContent`, because doing so duplicates older notes when Renovate combines multiple applicable releases.
 
-If Renovate eventually needs a complete current-to-target history independent of eligible update candidates, the smallest separate design is additional producer metadata containing an ordered advisory-history list for the selected path/range, plus explicit Renovate support for rendering that history separately from `releases`. Per-release `changelogContent` alone should not be overloaded with that meaning.
+A Cincinnati edge can legitimately connect `current -> target` while omitting an intermediate patch from the returned candidates. The target advisory can also refer to separate RPM/container advisories. This service does not add those intermediate versions to `releases`, because doing so would misrepresent update eligibility. Consequently, a graph gap is also a changelog-history gap unless the missing release is represented by an eligible release object supplied by the datasource.
+
+If Renovate eventually needs complete current-to-target history independent of eligible update candidates, that is a separate producer-consumer extension. It requires explicit ordered history metadata from the producer and corresponding Renovate support for rendering that metadata separately from `releases`; per-release `changelogContent` must not be overloaded with cumulative history.

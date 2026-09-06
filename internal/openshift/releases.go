@@ -23,11 +23,10 @@ const (
 var ErrCurrentVersionNotFound = errors.New("current release is not present in channel")
 
 type Client struct {
-	GraphURL             string
-	ErrataURL            string
-	ReleaseControllerURL string
-	HTTPClient           *http.Client
-	ChangelogCache       *ChangelogCache
+	GraphURL       string
+	ErrataURL      string
+	HTTPClient     *http.Client
+	ChangelogCache *ChangelogCache
 }
 
 type UpdateRequest struct {
@@ -141,14 +140,7 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 		targets = targets[:len(targets)-req.Lag]
 	}
 
-	// Preserve direct target advisory enrichment even when no matching
-	// release-controller stream is available for a custom graph.
 	c.enrichChangelogs(ctx, targets)
-
-	// A custom graph does not imply a matching release-controller stream.
-	if c.GraphURL == "" || c.GraphURL == DefaultGraphURL || c.ReleaseControllerURL != "" {
-		c.enrichChangelogHistory(ctx, req.Architecture, req.CurrentVersion, g.Nodes, targets)
-	}
 
 	out := append([]Release{releaseFromNode(g.Nodes[current])}, targets...)
 	sortReleases(out)
