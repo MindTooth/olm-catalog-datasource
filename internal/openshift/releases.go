@@ -141,6 +141,10 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 		targets = targets[:len(targets)-req.Lag]
 	}
 
+	// Preserve direct target advisory enrichment even when no matching
+	// release-controller stream is available for a custom graph.
+	c.enrichChangelogs(ctx, targets)
+
 	// A custom graph does not imply a matching release-controller stream.
 	if c.GraphURL == "" || c.GraphURL == DefaultGraphURL || c.ReleaseControllerURL != "" {
 		c.enrichChangelogHistory(ctx, req.Architecture, req.CurrentVersion, g.Nodes, targets)
