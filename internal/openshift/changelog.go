@@ -18,14 +18,14 @@ import (
 )
 
 const (
-	DefaultErrataURL            = "https://access.redhat.com/errata"
-	maxErrataBytes              = 8 << 20
-	maxChangelogBytes           = 6_000
-	maxAggregateChangelogBytes  = 24_000
-	changelogCacheTTL           = 6 * time.Hour
-	changelogFetchTimeout       = 5 * time.Second
-	changelogConcurrency        = 4
-	shortenedNoticeReserve      = 1024
+	DefaultErrataURL           = "https://access.redhat.com/errata"
+	maxErrataBytes             = 8 << 20
+	maxChangelogBytes          = 6_000
+	maxAggregateChangelogBytes = 24_000
+	changelogCacheTTL          = 6 * time.Hour
+	changelogFetchTimeout      = 5 * time.Second
+	changelogConcurrency       = 4
+	shortenedNoticeReserve     = 1024
 )
 
 var (
@@ -152,6 +152,13 @@ func (c Client) changelog(ctx context.Context, advisoryID, canonicalURL string) 
 		base = DefaultErrataURL
 	}
 	key := base + "\x00" + advisoryID
+	canonicalURL = DefaultErrataURL + "/" + advisoryID
+	return c.cachedChangelog(ctx, key, func() (string, error) {
+		return c.fetchChangelog(ctx, base, advisoryID, canonicalURL)
+	})
+}
+
+func (c Client) cachedChangelog(ctx context.Context, key string, fetch func() (string, error)) (string, error) {
 	cache := c.ChangelogCache
 	if cache == nil {
 		cache = defaultChangelogCache
@@ -183,8 +190,7 @@ func (c Client) changelog(ctx context.Context, advisoryID, canonicalURL string) 
 	cache.pending[key] = call
 	cache.mu.Unlock()
 
-	canonicalURL = DefaultErrataURL + "/" + advisoryID
-	content, fetchErr := c.fetchChangelog(ctx, base, advisoryID, canonicalURL)
+	content, fetchErr := fetch()
 	err := fetchErr
 	if fetchErr != nil && hasStale {
 		content, err = stale.content, nil

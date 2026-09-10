@@ -15,18 +15,20 @@ import (
 )
 
 const (
-	DefaultGraphURL = "https://api.openshift.com/api/upgrades_info/v1/graph"
-	maxGraphBytes   = 32 << 20
-	manifestRefKey  = "io.openshift.upgrades.graph.release.manifestref"
+	DefaultGraphURL             = "https://api.openshift.com/api/upgrades_info/v1/graph"
+	DefaultReleaseControllerURL = "https://multi.ocp.releases.ci.openshift.org"
+	maxGraphBytes               = 32 << 20
+	manifestRefKey              = "io.openshift.upgrades.graph.release.manifestref"
 )
 
 var ErrCurrentVersionNotFound = errors.New("current release is not present in channel")
 
 type Client struct {
-	GraphURL       string
-	ErrataURL      string
-	HTTPClient     *http.Client
-	ChangelogCache *ChangelogCache
+	GraphURL             string
+	ErrataURL            string
+	ReleaseControllerURL string
+	HTTPClient           *http.Client
+	ChangelogCache       *ChangelogCache
 }
 
 type UpdateRequest struct {
@@ -38,6 +40,7 @@ type UpdateRequest struct {
 
 type Release struct {
 	Version          string `json:"version"`
+	IsDeprecated     bool   `json:"isDeprecated,omitempty"`
 	ChangelogContent string `json:"changelogContent,omitempty"`
 	ChangelogURL     string `json:"changelogUrl,omitempty"`
 	Digest           string `json:"digest,omitempty"`
@@ -143,6 +146,7 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 	c.enrichChangelogs(ctx, targets)
 
 	out := append([]Release{releaseFromNode(g.Nodes[current])}, targets...)
+	out = c.enrichReleaseStreamChangelogs(ctx, req.Architecture, req.CurrentVersion, out)
 	sortReleases(out)
 	return out, nil
 }
