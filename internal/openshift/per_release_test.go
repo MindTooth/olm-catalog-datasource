@@ -42,10 +42,11 @@ func TestUpdatesKeepsChangelogContentPerRelease(t *testing.T) {
 
 	var releaseStreamRequests atomic.Int32
 	client := Client{
+		GraphURL: "https://graph.example.test",
 		HTTPClient: &http.Client{Transport: contractRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			var body string
 			switch req.URL.Hostname() {
-			case "api.openshift.com":
+			case "graph.example.test":
 				if req.URL.Query().Get("channel") != "stable-4.22" || req.URL.Query().Get("arch") != "multi" {
 					t.Fatalf("graph query = %s", req.URL.RawQuery)
 				}

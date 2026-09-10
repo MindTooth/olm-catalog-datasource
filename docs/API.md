@@ -273,6 +273,10 @@ format:
 Returns the installed OpenShift cluster release and only the releases connected
 to it by a direct, unconditional edge in Red Hat's update graph. Conditional
 edges are excluded because evaluating their risks requires cluster state.
+Accepted releases omitted by that graph can also be returned as deprecated,
+changelog-only entries. Renovate keeps those entries out of update selection
+while using their release-controller changelog content for a complete
+current-to-target changelog.
 
 Parameters:
 
@@ -304,6 +308,12 @@ Example response:
       "version": "4.21.22",
       "changelogUrl": "https://access.redhat.com/errata/RHSA-...",
       "digest": "quay.io/openshift-release-dev/ocp-release@sha256:..."
+    },
+    {
+      "version": "4.21.23",
+      "isDeprecated": true,
+      "changelogContent": "# Changes from 4.21.22 ...",
+      "changelogUrl": "https://multi.ocp.releases.ci.openshift.org/changelog?from=4.21.22&to=4.21.23"
     }
   ],
   "sourceUrl": "https://multi.ocp.releases.ci.openshift.org",
