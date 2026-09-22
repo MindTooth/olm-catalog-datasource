@@ -143,11 +143,16 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 		targets = targets[:len(targets)-req.Lag]
 	}
 
-	c.enrichChangelogs(ctx, targets)
-
 	out := append([]Release{releaseFromNode(g.Nodes[current])}, targets...)
-	out = c.enrichReleaseStreamChangelogs(ctx, req.Architecture, req.CurrentVersion, out)
+	advisoryURLs := make(map[string]string, len(g.Nodes))
+	for _, node := range g.Nodes {
+		if _, ok := advisoryIDFromURL(node.Metadata["url"]); ok {
+			advisoryURLs[node.Version] = node.Metadata["url"]
+		}
+	}
+	out = c.addReleaseStreamHistory(ctx, req.Architecture, req.CurrentVersion, advisoryURLs, out)
 	sortReleases(out)
+	c.enrichChangelogs(ctx, out[1:])
 	return out, nil
 }
 

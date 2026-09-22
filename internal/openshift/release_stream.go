@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -26,15 +25,13 @@ type releaseControllerTag struct {
 }
 
 type releaseStreamRelease struct {
-	version  string
-	previous string
+	version string
 }
 
-// enrichReleaseStreamChangelogs adds accepted releases that Cincinnati omits as
-// deprecated changelog-only entries. Renovate excludes deprecated releases when
-// choosing an update, but retains their per-release notes in the changelog
-// range. Graph releases stay eligible and retain their graph metadata.
-func (c Client) enrichReleaseStreamChangelogs(ctx context.Context, architecture, currentVersion string, releases []Release) []Release {
+// addReleaseStreamHistory adds accepted releases that Cincinnati omits as
+// deprecated changelog-only entries. Graph releases stay eligible and retain
+// their graph metadata; advisory content is fetched separately for all entries.
+func (c Client) addReleaseStreamHistory(ctx context.Context, architecture, currentVersion string, advisoryURLs map[string]string, releases []Release) []Release {
 	if len(releases) < 2 {
 		return releases
 	}
@@ -65,47 +62,15 @@ func (c Client) enrichReleaseStreamChangelogs(ctx context.Context, architecture,
 	for i := range releases {
 		positions[releases[i].Version] = i
 	}
-	history := make([]Release, 0, len(entries))
 	for _, entry := range entries {
-		if i, found := positions[entry.version]; found {
-			history = append(history, releases[i])
+		if _, found := positions[entry.version]; found {
 			continue
 		}
-		history = append(history, Release{
+		releases = append(releases, Release{
 			Version:      entry.version,
 			IsDeprecated: true,
-			ChangelogURL: releaseControllerChangelogURL(baseURL, entry.previous, entry.version),
+			ChangelogURL: advisoryURLs[entry.version],
 		})
-	}
-
-	semaphore := make(chan struct{}, changelogConcurrency)
-	var wg sync.WaitGroup
-	for i, entry := range entries {
-		wg.Add(1)
-		go func(index int, item releaseStreamRelease) {
-			defer wg.Done()
-			select {
-			case semaphore <- struct{}{}:
-				defer func() { <-semaphore }()
-			case <-ctx.Done():
-				return
-			}
-			content, err := c.releaseControllerChangelog(ctx, baseURL, item.previous, item.version)
-			if err == nil {
-				history[index].ChangelogContent = content
-			}
-		}(i, entry)
-	}
-	wg.Wait()
-
-	for _, release := range history {
-		if i, found := positions[release.Version]; found {
-			if release.ChangelogContent != "" {
-				releases[i].ChangelogContent = release.ChangelogContent
-			}
-			continue
-		}
-		releases = append(releases, release)
 	}
 	return releases
 }
@@ -190,10 +155,10 @@ func streamReleasesBetween(tags []releaseControllerTag, from, to string) []relea
 	})
 
 	entries := make([]releaseStreamRelease, 0, len(accepted))
-	for i, tag := range accepted {
+	for _, tag := range accepted {
 		version, _ := semver.StrictNewVersion(tag)
-		if fromVersion.LessThan(version) && !toVersion.LessThan(version) && i > 0 {
-			entries = append(entries, releaseStreamRelease{version: tag, previous: accepted[i-1]})
+		if fromVersion.LessThan(version) && !toVersion.LessThan(version) {
+			entries = append(entries, releaseStreamRelease{version: tag})
 		}
 	}
 	return entries
@@ -209,53 +174,4 @@ func latestVersion(releases []Release) string {
 		}
 	}
 	return latest
-}
-
-func releaseControllerChangelogURL(baseURL, from, to string) string {
-	u, _ := url.Parse(strings.TrimRight(baseURL, "/") + "/changelog")
-	q := u.Query()
-	q.Set("from", from)
-	q.Set("to", to)
-	u.RawQuery = q.Encode()
-	return u.String()
-}
-
-func (c Client) releaseControllerChangelog(ctx context.Context, baseURL, from, to string) (string, error) {
-	key := strings.TrimRight(baseURL, "/") + "\x00release-controller\x00" + from + "\x00" + to
-	return c.cachedChangelog(ctx, key, func() (string, error) {
-		return c.fetchReleaseControllerChangelog(ctx, baseURL, from, to)
-	})
-}
-
-func (c Client) fetchReleaseControllerChangelog(ctx context.Context, baseURL, from, to string) (string, error) {
-	endpoint := releaseControllerChangelogURL(baseURL, from, to)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return "", fmt.Errorf("create OpenShift changelog request: %w", err)
-	}
-	req.Header.Set("Accept", "text/plain")
-	client := c.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("fetch OpenShift changelog: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("fetch OpenShift changelog: unexpected HTTP status %s", res.Status)
-	}
-	body, err := io.ReadAll(io.LimitReader(res.Body, maxReleaseControllerBytes+1))
-	if err != nil {
-		return "", fmt.Errorf("read OpenShift changelog: %w", err)
-	}
-	if len(body) > maxReleaseControllerBytes {
-		return "", fmt.Errorf("OpenShift changelog exceeds %d bytes", maxReleaseControllerBytes)
-	}
-	content := strings.TrimSpace(string(body))
-	if content == "" {
-		return "", fmt.Errorf("OpenShift changelog is empty")
-	}
-	return content + "\n\n_Source: [OpenShift release-controller changelog](" + endpoint + ")._", nil
 }
