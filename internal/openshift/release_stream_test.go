@@ -80,6 +80,24 @@ func TestUpdatesKeepsAllStreamReleasesWithErrataOnlyChangelogs(t *testing.T) {
 	}
 }
 
+func TestReleaseComparisonURL(t *testing.T) {
+	for _, tc := range []struct {
+		architecture string
+		want         string
+	}{
+		{"multi", "https://multi.ocp.releases.ci.openshift.org/releasestream/4-stable-multi/release/4.21.33?from=4.20.36"},
+		{"amd64", "https://amd64.ocp.releases.ci.openshift.org/releasestream/4-stable/release/4.21.33?from=4.20.36"},
+		{"unknown", ""},
+	} {
+		if got := (Client{}).ReleaseComparisonURL(tc.architecture, "4.20.36", "4.21.33"); got != tc.want {
+			t.Errorf("ReleaseComparisonURL(%q) = %q, want %q", tc.architecture, got, tc.want)
+		}
+	}
+	if got := (Client{}).ReleaseComparisonURL("multi", "4.21.33", "4.21.33"); got != "" {
+		t.Errorf("same-version comparison URL = %q, want empty", got)
+	}
+}
+
 func testHTTPResponse(req *http.Request, status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,

@@ -20,6 +20,8 @@ An accepted release that is absent from the Cincinnati candidates is included wi
 
 The installed release is not enriched. Releases outside the update range are not returned. A stream-only release without a graph advisory URL remains in the response without `changelogContent`; no advisory ID is inferred from its version.
 
+When at least one update is returned, the response also has a top-level `changelogUrl` linking from the installed version to the highest returned update on the matching release-controller stream. Renovate can show that URL as a changelog link in its PR body; it is separate from the bounded advisory summaries embedded per release.
+
 ## Source, bounds, and failure handling
 
 Red Hat errata pages are the only source of embedded changelog content. Advisory requests share a five-second lookup budget and at most four run at once. Embedded summaries are bounded per release and across the response. The graph lookup remains governed by `openshiftTimeout` (30 seconds by default).

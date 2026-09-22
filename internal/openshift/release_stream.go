@@ -108,6 +108,26 @@ func (c Client) releaseControllerSource(architecture string) (baseURL, stream st
 	}
 }
 
+// ReleaseComparisonURL links the installed release to the highest returned
+// update without embedding release-controller changelog content.
+func (c Client) ReleaseComparisonURL(architecture, from, to string) string {
+	if from == "" || to == "" || from == to {
+		return ""
+	}
+	baseURL, stream, ok := c.releaseControllerSource(architecture)
+	if !ok {
+		return ""
+	}
+	u, err := url.Parse(strings.TrimRight(baseURL, "/") + "/releasestream/" + url.PathEscape(stream) + "/release/" + url.PathEscape(to))
+	if err != nil {
+		return ""
+	}
+	q := u.Query()
+	q.Set("from", from)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
 func (c Client) fetchReleaseControllerTags(ctx context.Context, baseURL, stream string) ([]releaseControllerTag, error) {
 	endpoint := strings.TrimRight(baseURL, "/") + "/api/v1/releasestream/" + url.PathEscape(stream) + "/tags"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

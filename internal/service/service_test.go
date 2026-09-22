@@ -81,8 +81,9 @@ func TestOpenShiftReleasesEndpoint(t *testing.T) {
 			ChangelogURL string `json:"changelogUrl"`
 			Digest       string `json:"digest"`
 		} `json:"releases"`
-		SourceURL string `json:"sourceUrl"`
-		Homepage  string `json:"homepage"`
+		SourceURL    string `json:"sourceUrl"`
+		Homepage     string `json:"homepage"`
+		ChangelogURL string `json:"changelogUrl"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
@@ -95,6 +96,22 @@ func TestOpenShiftReleasesEndpoint(t *testing.T) {
 	}
 	if body.SourceURL != "https://multi.ocp.releases.ci.openshift.org" || body.Homepage != "https://openshift.com" {
 		t.Fatalf("unexpected source metadata: %#v", body)
+	}
+	if body.ChangelogURL != "https://multi.ocp.releases.ci.openshift.org/releasestream/4-stable-multi/release/4.21.22?from=4.21.21" {
+		t.Fatalf("unexpected changelog URL: %q", body.ChangelogURL)
+	}
+
+	noUpdates := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(noUpdates, httptest.NewRequest(http.MethodGet, "/v1/openshift-releases/stable-4.21/updates?currentVersion=4.21.21&lag=2", nil))
+	if noUpdates.Code != http.StatusOK {
+		t.Fatalf("no-update status = %d, body = %s", noUpdates.Code, noUpdates.Body.String())
+	}
+	var noUpdateBody map[string]json.RawMessage
+	if err := json.NewDecoder(noUpdates.Body).Decode(&noUpdateBody); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := noUpdateBody["changelogUrl"]; found {
+		t.Fatalf("no-update response has changelogUrl: %s", noUpdates.Body.String())
 	}
 }
 
