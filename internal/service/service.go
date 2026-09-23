@@ -378,7 +378,8 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	values, err := (openshift.Client{GraphURL: graphURL, HTTPClient: httpClient}).Updates(ctx, openshift.UpdateRequest{
+	client := openshift.Client{GraphURL: graphURL, HTTPClient: httpClient}
+	values, err := client.Updates(ctx, openshift.UpdateRequest{
 		Channel:        parts[2],
 		Architecture:   architecture,
 		CurrentVersion: currentVersion,
@@ -392,14 +393,20 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	changelogURL := ""
+	if len(values) > 1 {
+		changelogURL = client.ReleaseComparisonURL(architecture, currentVersion, values[len(values)-1].Version)
+	}
 	writeJSON(w, http.StatusOK, struct {
-		Releases  []openshift.Release `json:"releases"`
-		SourceURL string              `json:"sourceUrl"`
-		Homepage  string              `json:"homepage"`
+		Releases     []openshift.Release `json:"releases"`
+		SourceURL    string              `json:"sourceUrl"`
+		Homepage     string              `json:"homepage"`
+		ChangelogURL string              `json:"changelogUrl,omitempty"`
 	}{
-		Releases:  values,
-		SourceURL: "https://" + architecture + ".ocp.releases.ci.openshift.org",
-		Homepage:  "https://openshift.com",
+		Releases:     values,
+		SourceURL:    "https://" + architecture + ".ocp.releases.ci.openshift.org",
+		Homepage:     "https://openshift.com",
+		ChangelogURL: changelogURL,
 	})
 }
 

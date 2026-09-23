@@ -10,24 +10,24 @@ That graph is not a complete changelog index. It can omit an accepted patch rele
 - `ppc64le`: `4-stable-ppc64le`
 - `s390x`: `4-stable-s390x`
 
-The release-controller's structured `/api/v1/releasestream/{stream}/tags` endpoint supplies accepted release names. For every accepted release in `(currentVersion, highest Cincinnati target]`, the datasource reads the release-controller's `/changelog?from={previous}&to={release}` Markdown. It does not derive versions, predecessor releases, or changelog text from version numbers or advisory names.
+The release-controller's structured `/api/v1/releasestream/{stream}/tags` endpoint supplies accepted release names in `(currentVersion, highest Cincinnati target]`. It is used only to discover versions. The datasource does not fetch release-controller changelog bodies.
 
 ## Response and Renovate contract
 
-Graph releases retain their Cincinnati version, digest, ordering, and advisory `changelogUrl`. If release-controller content is available, it replaces the short advisory summary in that release's `changelogContent`.
+Graph releases retain their Cincinnati version, digest, ordering, and advisory `changelogUrl`. Their `changelogContent` is parsed from the linked Red Hat errata page.
 
-An accepted release that is absent from the Cincinnati candidates is included with its exact release-controller changelog and `isDeprecated: true`. Renovate does not select deprecated releases as updates, but its custom datasource changelog support retains their release notes when it renders the range from the installed version to the selected graph target. This keeps update decisions and their changelog history separate: a graph-gap release is visible in the PR notes without being proposed as an upgrade.
+An accepted release that is absent from the Cincinnati candidates is included with `isDeprecated: true`. When that version has an advisory URL in the Cincinnati graph metadata, its `changelogUrl` points to the advisory and its `changelogContent` is parsed from that errata page. Renovate does not select deprecated releases as updates, but retains their available release notes when it renders the range from the installed version to the selected graph target.
 
-The installed release is not enriched. Releases outside the update range are not returned. A release-controller entry that cannot be read remains in the response (and remains deprecated if it is stream-only), but simply has no `changelogContent`; it never changes Cincinnati eligibility.
+The installed release is not enriched. Releases outside the update range are not returned. A stream-only release without a graph advisory URL remains in the response without `changelogContent`; no advisory ID is inferred from its version.
+
+When at least one update is returned, the response also has a top-level `changelogUrl` linking from the installed version to the highest returned update on the matching release-controller stream. Renovate can show that URL as a changelog link in its PR body; it is separate from the bounded advisory summaries embedded per release.
 
 ## Source, bounds, and failure handling
 
-The release-controller changelog is the source of the detailed component change history. It is public Markdown generated for the release payload's real predecessor and release image. Each HTTP response is capped at 8 MiB to avoid unbounded reads. Requests share a five-second lookup budget and at most four per-release changelog requests run at once. The graph lookup remains governed by `openshiftTimeout` (30 seconds by default).
+Red Hat errata pages are the only source of embedded changelog content. Advisory requests share a five-second lookup budget and at most four run at once. Embedded summaries are bounded per release and across the response. The graph lookup remains governed by `openshiftTimeout` (30 seconds by default).
 
-If stream discovery or an individual changelog request fails, the update response is still successful. Cincinnati targets remain present with their existing digest and advisory link. A graph target can retain its existing Red Hat advisory summary as a fallback when its release-controller changelog is unavailable.
+If stream discovery or an individual advisory request fails, the update response is still successful. Cincinnati targets remain present with their existing digest and advisory link. A release without a successfully parsed advisory simply has no `changelogContent`.
 
 ## Cache behavior
 
-Successful per-release controller changelogs are cached in memory by effective release-controller endpoint and exact `(previous release, release)` pair. Concurrent lookups for the same pair are coalesced. Entries are revalidated after six hours; if revalidation fails, the last successful content is used. Cold failures are not cached, so the next Renovate pass can retry. The cache is in-memory only and is cleared on restart.
-
-The existing Red Hat advisory cache remains in place for fallback advisory summaries. It uses the same successful-cache, coalescing, stale-on-error, and cold-retry behavior.
+Successful Red Hat advisory summaries are cached in memory for six hours. Concurrent lookups for the same advisory are coalesced. If revalidation fails, the last successful content is used. Cold failures are not cached, so the next Renovate pass can retry. The cache is cleared on restart.
