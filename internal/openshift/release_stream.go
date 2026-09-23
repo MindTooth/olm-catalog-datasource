@@ -111,6 +111,9 @@ func (c Client) releaseControllerSource(architecture string) (baseURL, stream st
 // ReleaseComparisonURL links the installed release to the highest returned
 // update without embedding release-controller changelog content.
 func (c Client) ReleaseComparisonURL(architecture, from, to string) string {
+	if c.GraphURL != "" && c.GraphURL != DefaultGraphURL && c.ReleaseControllerURL == "" {
+		return ""
+	}
 	if from == "" || to == "" || from == to {
 		return ""
 	}
