@@ -97,8 +97,8 @@ func TestOpenShiftReleasesEndpoint(t *testing.T) {
 	if body.SourceURL != "https://multi.ocp.releases.ci.openshift.org" || body.Homepage != "https://openshift.com" {
 		t.Fatalf("unexpected source metadata: %#v", body)
 	}
-	if body.ChangelogURL != "https://multi.ocp.releases.ci.openshift.org/releasestream/4-stable-multi/release/4.21.22?from=4.21.21" {
-		t.Fatalf("unexpected changelog URL: %q", body.ChangelogURL)
+	if body.ChangelogURL != "" {
+		t.Fatalf("private graph without a release controller has comparison URL: %q", body.ChangelogURL)
 	}
 
 	noUpdates := httptest.NewRecorder()
