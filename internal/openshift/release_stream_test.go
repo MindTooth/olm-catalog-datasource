@@ -98,6 +98,35 @@ func TestReleaseComparisonURL(t *testing.T) {
 	}
 }
 
+func TestReleaseComparisonURLGraphOverride(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		client Client
+		want   string
+	}{
+		{
+			name:   "private graph without controller",
+			client: Client{GraphURL: "https://graph.example.test"},
+		},
+		{
+			name:   "explicit default graph",
+			client: Client{GraphURL: DefaultGraphURL},
+			want:   "https://multi.ocp.releases.ci.openshift.org/releasestream/4-stable-multi/release/4.21.33?from=4.20.36",
+		},
+		{
+			name:   "private graph with explicit controller",
+			client: Client{GraphURL: "https://graph.example.test", ReleaseControllerURL: "https://release-controller.example.test"},
+			want:   "https://release-controller.example.test/releasestream/4-stable-multi/release/4.21.33?from=4.20.36",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.client.ReleaseComparisonURL("multi", "4.20.36", "4.21.33"); got != tc.want {
+				t.Errorf("ReleaseComparisonURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func testHTTPResponse(req *http.Request, status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
