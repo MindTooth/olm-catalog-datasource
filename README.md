@@ -1,3 +1,5 @@
+![Ratatoskr, a squirrel carrying a letter beneath Yggdrasil](assets/images/ratatoskr-banner.jpg)
+
 # ratatoskr
 
 `ratatoskr` provides OpenShift release and OLM catalog version logic
