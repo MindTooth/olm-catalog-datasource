@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MindTooth/openshift-versioning/pkg/catalog"
+	"github.com/MindTooth/Ratatoskr/pkg/catalog"
 )
 
 func TestResponseRecorderUsesFirstStatusAndCountsBytes(t *testing.T) {

@@ -13,7 +13,7 @@ Install from the GitHub Pages Helm repository:
 GitHub Pages must first deploy the `gh-pages` branch from the repository root;
 this publishes the repository chart index.
 
-    helm repo add mindtooth https://mindtooth.github.io/openshift-versioning
+    helm repo add mindtooth https://mindtooth.github.io/Ratatoskr
     helm upgrade --install olm-catalog-datasource mindtooth/olm-catalog-datasource --version 0.3.1 -f values-openshift.yaml
 
 Or install the same chart from GitHub Container Registry:

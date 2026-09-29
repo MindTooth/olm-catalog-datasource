@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MindTooth/openshift-versioning/pkg/catalog"
+	"github.com/MindTooth/Ratatoskr/pkg/catalog"
 )
 
 func TestExampleConfig(t *testing.T) {

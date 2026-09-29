@@ -1,4 +1,4 @@
-module github.com/MindTooth/openshift-versioning
+module github.com/MindTooth/Ratatoskr
 
 go 1.26.3
 

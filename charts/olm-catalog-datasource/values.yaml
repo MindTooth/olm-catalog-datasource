@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: ghcr.io/mindtooth/openshift-versioning
+  repository: ghcr.io/mindtooth/ratatoskr
   tag: ""
   digest: ""
   pullPolicy: IfNotPresent

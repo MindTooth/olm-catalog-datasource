@@ -1,6 +1,6 @@
-# OpenShift versioning
+# Ratatoskr
 
-`openshift-versioning` provides OpenShift release and OLM catalog version logic
+Ratatoskr provides OpenShift release and OLM catalog version logic
 for Go applications. Its `olm-catalog-datasource` service exposes OpenShift
 cluster releases and file-based operator catalog updates to Renovate. Cluster
 releases come from the official OpenShift update graph. Operator catalogs are pulled
@@ -17,6 +17,20 @@ copy-ready `curl` example.
 The service returns only versions connected to the current bundle by declared
 `replaces`, `skips`, or `skipRange` edges. It deliberately does not treat every
 newer catalog version as an upgrade.
+
+## About the name
+
+Ratatoskr is the squirrel of Norse mythology who travels along Yggdrasil, the
+world tree, carrying messages between the eagle in its branches and Níðhöggr
+beneath its roots. His journey appears in [*Grímnismál*, stanza 32](https://sacred-texts.com/neu/poe/poe06.htm)
+and [*Gylfaginning*, chapter 16](https://en.wikisource.org/wiki/The_Prose_Edda_(1916_translation_by_Arthur_Gilchrist_Brodeur)/Gylfaginning).
+
+For this project, the name celebrates the messenger: a small, tireless traveller
+through a branching world, bringing news from one place to another. Ratatoskr
+follows the paths through OpenShift release graphs and operator catalogs,
+carrying version information to the tools that need it. The tree is our
+metaphor for connected releases; the squirrel is our reminder to keep the
+messenger small and useful.
 
 ## Status
 
@@ -185,7 +199,7 @@ custom source IDs use the equivalent `/v2/sources/{source}` routes.
 ## Go package
 
 Other Go applications can import
-`github.com/MindTooth/openshift-versioning/pkg/catalog` without starting the
+`github.com/MindTooth/Ratatoskr/pkg/catalog` without starting the
 datasource server or accessing a cluster:
 
 ```go
