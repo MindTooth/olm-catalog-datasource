@@ -16,7 +16,7 @@ concurrency:
 jobs:
   go:
     name: Go test
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -48,7 +48,7 @@ jobs:
 
   lint:
     name: Go lint
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-slim
     timeout-minutes: 15
     permissions:
       contents: read
@@ -68,11 +68,12 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.14.0
+          args: --build-tags=containers_image_openpgp
 
 
   helm:
     name: Helm lint and API validation
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -188,7 +189,7 @@ jobs:
       - helm
       - container-verify
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
@@ -259,7 +260,7 @@ jobs:
       github.ref == 'refs/heads/master' &&
       needs.release.result == 'success' &&
       (needs.container-publish.result == 'success' || needs.container-publish.result == 'skipped')
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
