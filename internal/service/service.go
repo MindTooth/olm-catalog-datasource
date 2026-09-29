@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
 	"github.com/MindTooth/olm-catalog-datasource/internal/openshift"
+	"github.com/MindTooth/olm-catalog-datasource/pkg/catalog"
 )
 
 type Config struct {

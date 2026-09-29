@@ -13,6 +13,8 @@ import (
 // requested channel. It is a valid catalog result, not a failed query.
 var ErrNoUpdatePath = errors.New("current release is not present in channel")
 
+// UpdateRequest selects graph successors of a known bundle or version.
+// An empty Channel selects the package default; Mode defaults to direct.
 type UpdateRequest struct {
 	CurrentVersion string
 	CurrentBundle  string

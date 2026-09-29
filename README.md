@@ -181,6 +181,49 @@ heads and deprecation state, `include=bundles` adds bundle metadata, and
 `include=graph` adds the raw `replaces`, `skips`, and `skipRange` edges. Exact
 custom source IDs use the equivalent `/v2/sources/{source}` routes.
 
+## Go package
+
+Other Go applications can import
+`github.com/MindTooth/olm-catalog-datasource/pkg/catalog` without starting the
+datasource server or accessing a cluster:
+
+```go
+reader := catalog.Reader{SignaturePolicy: "/etc/containers/policy.json"}
+snapshot, err := reader.Read(ctx, catalog.Source{
+    ID:    "redhat-operators-v4.20",
+    Image: "registry.redhat.io/redhat/redhat-operator-index:v4.20",
+})
+if err != nil {
+    return err
+}
+pkg := snapshot.Packages["openshift-gitops-operator"]
+if pkg == nil {
+    return fmt.Errorf("operator is not in the catalog")
+}
+versions, err := pkg.VersionUpdates(catalog.UpdateRequest{
+    Channel:        "latest",
+    CurrentVersion: "1.18.0",
+    Mode:           "reachable",
+})
+```
+
+For unpacked FBC data, use `reader.ReadFS(ctx, catalog.Source{ID: "local"},
+os.DirFS("/path/to/configs"))`. Both entry points use the same parser.
+`Snapshot.Packages` exposes channels and bundle metadata; `ChannelHeads` returns
+terminal bundles, and `ChannelReleases` resolves graph-valid channel transitions.
+`VersionUpdates` includes the current version and graph successors, defaults to
+the package's default channel, and retains the existing version ordering.
+
+Build consumers with `-tags=containers_image_openpgp`, as with the datasource.
+Image loading uses the existing registry authentication and signature policy
+behavior. Consumers own refresh scheduling and snapshot caching. The package
+does not import the service or its Renovate response types.
+
+OLM bundle metadata currently includes names, versions, images, and deprecation
+fields. Changelog titles and errata enrichment belong to the separate OpenShift
+release datasource and are unchanged by this package extraction. Cluster state
+collection and Prometheus metrics are outside the package's scope.
+
 ## Security
 
 Use a mounted registry-authentication file, an explicit containers/image

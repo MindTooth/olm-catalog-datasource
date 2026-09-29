@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
 	"github.com/MindTooth/olm-catalog-datasource/internal/config"
 	"github.com/MindTooth/olm-catalog-datasource/internal/service"
+	"github.com/MindTooth/olm-catalog-datasource/pkg/catalog"
 )
 
 func main() {
