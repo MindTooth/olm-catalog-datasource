@@ -1,4 +1,4 @@
-module github.com/MindTooth/olm-catalog-datasource
+module github.com/MindTooth/openshift-versioning
 
 go 1.26.3
 

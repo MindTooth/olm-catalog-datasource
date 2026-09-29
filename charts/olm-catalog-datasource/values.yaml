@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: ghcr.io/mindtooth/olm-catalog-datasource
+  repository: ghcr.io/mindtooth/openshift-versioning
   tag: ""
   digest: ""
   pullPolicy: IfNotPresent

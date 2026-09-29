@@ -25,8 +25,8 @@ containers/image policy, and writable `/tmp` and cache directories.
 ## 1. Get the source and prepare Go modules
 
 ```fish
-git clone https://github.com/MindTooth/olm-catalog-datasource.git
-cd olm-catalog-datasource
+git clone https://github.com/MindTooth/openshift-versioning.git
+cd openshift-versioning
 go mod download
 go test ./...
 ```

@@ -1,8 +1,9 @@
-# OLM catalog datasource
+# OpenShift versioning
 
-`olm-catalog-datasource` is a native Go service for exposing OpenShift cluster
-releases and file-based operator catalog updates to Renovate. Cluster releases
-come from the official OpenShift update graph. Operator catalogs are pulled
+`openshift-versioning` provides OpenShift release and OLM catalog version logic
+for Go applications. Its `olm-catalog-datasource` service exposes OpenShift
+cluster releases and file-based operator catalog updates to Renovate. Cluster
+releases come from the official OpenShift update graph. Operator catalogs are pulled
 through the upstream Operator Framework image libraries; the service does not
 execute `opm`, `oc-mirror`, or a container client.
 
@@ -184,7 +185,7 @@ custom source IDs use the equivalent `/v2/sources/{source}` routes.
 ## Go package
 
 Other Go applications can import
-`github.com/MindTooth/olm-catalog-datasource/pkg/catalog` without starting the
+`github.com/MindTooth/openshift-versioning/pkg/catalog` without starting the
 datasource server or accessing a cluster:
 
 ```go

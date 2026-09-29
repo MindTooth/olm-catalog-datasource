@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/MindTooth/olm-catalog-datasource/internal/service"
-	"github.com/MindTooth/olm-catalog-datasource/pkg/catalog"
+	"github.com/MindTooth/openshift-versioning/internal/service"
+	"github.com/MindTooth/openshift-versioning/pkg/catalog"
 	"go.yaml.in/yaml/v3"
 )
 
