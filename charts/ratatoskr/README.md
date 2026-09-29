@@ -33,11 +33,6 @@ For a checkout-based installation, use:
 catalog channel or exact source, and a signature policy source. Registry auth
 and refresh-token Secrets are optional references.
 
-For an existing `olm-catalog-datasource` chart installation, keep the same Helm
-release name and set `nameOverride: olm-catalog-datasource` when switching to
-this chart. This preserves resource names and Deployment selectors. New
-installations use `ratatoskr` by default.
-
 The common catalog configuration is:
 
     config:

@@ -1,5 +1,5 @@
 {{- define "ratatoskr.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- .Chart.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- define "ratatoskr.fullname" -}}
 {{- if .Values.fullnameOverride }}{{ .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}{{ else }}{{ printf "%s-%s" .Release.Name (include "ratatoskr.name" .) | trunc 63 | trimSuffix "-" }}{{ end }}

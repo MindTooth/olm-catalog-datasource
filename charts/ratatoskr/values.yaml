@@ -5,7 +5,6 @@ image:
   digest: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []
-nameOverride: ""
 fullnameOverride: ""
 serviceAccount:
   create: true
