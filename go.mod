@@ -1,4 +1,4 @@
-module github.com/MindTooth/Ratatoskr
+module github.com/MindTooth/ratatoskr
 
 go 1.26.3
 

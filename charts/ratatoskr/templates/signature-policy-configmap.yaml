@@ -7,9 +7,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "olm-catalog-datasource.fullname" . }}-signature-policy
+  name: {{ include "ratatoskr.fullname" . }}-signature-policy
   labels:
-    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+    {{- include "ratatoskr.labels" . | nindent 4 }}
 data:
   {{ .Values.signaturePolicy.key }}: |
     {

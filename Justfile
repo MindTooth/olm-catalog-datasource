@@ -34,5 +34,5 @@ build:
 
 # Lint the chart with both CI values fixtures.
 helm-lint:
-    helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/valid-values.yaml
-    helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/explicit-source-values.yaml
+    helm lint --strict charts/ratatoskr --values .github/fixtures/helm/valid-values.yaml
+    helm lint --strict charts/ratatoskr --values .github/fixtures/helm/explicit-source-values.yaml

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MindTooth/Ratatoskr/pkg/catalog"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 func TestResponseRecorderUsesFirstStatusAndCountsBytes(t *testing.T) {

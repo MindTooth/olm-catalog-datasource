@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MindTooth/Ratatoskr/internal/config"
-	"github.com/MindTooth/Ratatoskr/internal/service"
-	"github.com/MindTooth/Ratatoskr/pkg/catalog"
+	"github.com/MindTooth/ratatoskr/internal/config"
+	"github.com/MindTooth/ratatoskr/internal/service"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 func main() {

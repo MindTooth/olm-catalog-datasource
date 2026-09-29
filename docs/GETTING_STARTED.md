@@ -25,8 +25,8 @@ containers/image policy, and writable `/tmp` and cache directories.
 ## 1. Get the source and prepare Go modules
 
 ```fish
-git clone https://github.com/MindTooth/Ratatoskr.git
-cd Ratatoskr
+git clone https://github.com/MindTooth/ratatoskr.git
+cd ratatoskr
 go mod download
 go test ./...
 ```
@@ -220,7 +220,7 @@ declare a usable path from that installed release.
 Build an image after downloading and verifying the modules:
 
 ```fish
-podman build -t olm-catalog-datasource:dev -f Containerfile .
+podman build -t ratatoskr:dev -f Containerfile .
 mkdir -p .cache
 ```
 
@@ -229,14 +229,14 @@ policy mounts read-only and provide writable `/tmp` and `OLM_CACHE_DIR`:
 
 ```fish
 podman run --rm -p 8080:8080 \
-  -v "$PWD/config.yaml:/etc/olm-catalog-datasource/config.yaml:ro,Z" \
+  -v "$PWD/config.yaml:/etc/ratatoskr/config.yaml:ro,Z" \
   -v "$PWD/policy.json:/etc/containers/policy.json:ro,Z" \
   -v "$HOME/.config/containers/auth.json:/var/run/registry-auth/auth.json:ro,Z" \
   -v "$PWD/.cache:/var/cache/olm:Z" \
   --tmpfs /tmp:rw,size=1g \
   -e REGISTRY_AUTH_FILE=/var/run/registry-auth/auth.json \
   -e OLM_CACHE_DIR=/var/cache/olm \
-  olm-catalog-datasource:dev
+  ratatoskr:dev
 ```
 
 Use a persistent cache volume for routine operation. The registry client can
@@ -272,9 +272,9 @@ Minimal Pod manifest:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: olm-catalog-datasource
+  name: ratatoskr
   labels:
-    app: olm-catalog-datasource
+    app: ratatoskr
 spec:
   # The service does not call the Kubernetes API.
   automountServiceAccountToken: false
@@ -284,8 +284,8 @@ spec:
       type: RuntimeDefault
   containers:
     - name: datasource
-      image: registry.example/olm-catalog-datasource:tag
-      args: ["serve", "--config", "/etc/olm-catalog-datasource/config.yaml"]
+      image: registry.example/ratatoskr:tag
+      args: ["serve", "--config", "/etc/ratatoskr/config.yaml"]
       ports:
         - containerPort: 8080
           name: http
@@ -324,7 +324,7 @@ spec:
         failureThreshold: 3
       volumeMounts:
         - name: config
-          mountPath: /etc/olm-catalog-datasource
+          mountPath: /etc/ratatoskr
           readOnly: true
         - name: policy
           mountPath: /etc/containers

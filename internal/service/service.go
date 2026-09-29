@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MindTooth/Ratatoskr/internal/openshift"
-	"github.com/MindTooth/Ratatoskr/pkg/catalog"
+	"github.com/MindTooth/ratatoskr/internal/openshift"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 type Config struct {

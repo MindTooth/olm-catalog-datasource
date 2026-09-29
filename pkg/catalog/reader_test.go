@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/MindTooth/Ratatoskr/pkg/catalog"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 // Exercise the public loading and query API without a registry, server, or cluster.

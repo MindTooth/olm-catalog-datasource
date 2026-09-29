@@ -1,6 +1,6 @@
-# Ratatoskr
+# ratatoskr
 
-Ratatoskr provides OpenShift release and OLM catalog version logic
+`ratatoskr` provides OpenShift release and OLM catalog version logic
 for Go applications. Its `olm-catalog-datasource` service exposes OpenShift
 cluster releases and file-based operator catalog updates to Renovate. Cluster
 releases come from the official OpenShift update graph. Operator catalogs are pulled
@@ -26,7 +26,7 @@ beneath its roots. His journey appears in [*Grímnismál*, stanza 32](https://sa
 and [*Gylfaginning*, chapter 16](https://en.wikisource.org/wiki/The_Prose_Edda_(1916_translation_by_Arthur_Gilchrist_Brodeur)/Gylfaginning).
 
 For this project, the name celebrates the messenger: a small, tireless traveller
-through a branching world, bringing news from one place to another. Ratatoskr
+through a branching world, bringing news from one place to another. `ratatoskr`
 follows the paths through OpenShift release graphs and operator catalogs,
 carrying version information to the tools that need it. The tree is our
 metaphor for connected releases; the squirrel is our reminder to keep the
@@ -127,7 +127,7 @@ OpenShift cluster releases require only a channel and the installed version:
 {
   "customDatasources": {
     "openshift-releases": {
-      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
+      "defaultRegistryUrlTemplate": "http://ratatoskr.example/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
       "format": "json"
     }
   }
@@ -144,7 +144,7 @@ Operator catalog releases use the catalog endpoints:
 {
   "customDatasources": {
     "openshift-operators-v4-22": {
-      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v2/catalogs/redhat/4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&operatorChannel=gitops-1.20&mode=reachable",
+      "defaultRegistryUrlTemplate": "http://ratatoskr.example/v2/catalogs/redhat/4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&operatorChannel=gitops-1.20&mode=reachable",
       "format": "json"
     }
   }
@@ -199,7 +199,7 @@ custom source IDs use the equivalent `/v2/sources/{source}` routes.
 ## Go package
 
 Other Go applications can import
-`github.com/MindTooth/Ratatoskr/pkg/catalog` without starting the
+`github.com/MindTooth/ratatoskr/pkg/catalog` without starting the
 datasource server or accessing a cluster:
 
 ```go

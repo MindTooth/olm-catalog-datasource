@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MindTooth/Ratatoskr/pkg/catalog"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 func TestExampleConfig(t *testing.T) {
