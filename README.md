@@ -3,7 +3,7 @@
 # ratatoskr
 
 `ratatoskr` provides OpenShift release and OLM catalog version logic
-for Go applications. Its `olm-catalog-datasource` service exposes OpenShift
+for Go applications. Its `ratatoskr` service exposes OpenShift
 cluster releases and file-based operator catalog updates to Renovate. Cluster
 releases come from the official OpenShift update graph. Operator catalogs are pulled
 through the upstream Operator Framework image libraries; the service does not
@@ -77,7 +77,7 @@ The explicit source replaces the generated source with the same ID. See the
 ## Run
 
 ```fish
-go run ./cmd/olm-catalog-datasource serve --config ./config.yaml
+go run ./cmd/ratatoskr serve --config ./config.yaml
 ```
 
 Each HTTP request is logged with method, path, response status, response size,
@@ -86,7 +86,7 @@ configuration) to also log query strings and user agents, plus catalog refresh
 progress:
 
 ```fish
-go run ./cmd/olm-catalog-datasource serve --config ./config.yaml --debug
+go run ./cmd/ratatoskr serve --config ./config.yaml --debug
 ```
 
 The server automatically reloads a changed configuration file every five
@@ -97,7 +97,7 @@ this behavior; changing `listenAddress` still requires a restart.
 For a one-off query, pass the same selection explicitly:
 
 ```fish
-go run ./cmd/olm-catalog-datasource query \
+go run ./cmd/ratatoskr query \
   --image registry.redhat.io/redhat/community-operator-index:v4.20 \
   --package strimzi-kafka-operator \
   --channel stable \
@@ -163,7 +163,7 @@ entry covering the installed bundle or version. Its `digest` response field is
 the companion bundle-state marker Renovate must persist as `currentDigest`.
 
 ```fish
-olm-catalog-datasource channel-query \
+ratatoskr channel-query \
   --image registry.redhat.io/redhat/redhat-operator-index:v4.20 \
   --package openshift-gitops-operator \
   --current-channel gitops-1.20 \

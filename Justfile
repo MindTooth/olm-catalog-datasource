@@ -5,11 +5,11 @@ default:
 
 # Run the service with the local configuration.
 run:
-    go run -tags=containers_image_openpgp ./cmd/olm-catalog-datasource serve --config ./config.yaml
+    go run -tags=containers_image_openpgp ./cmd/ratatoskr serve --config ./config.yaml
 
 # Run the service with verbose request and refresh logs.
 debug:
-    go run -tags=containers_image_openpgp ./cmd/olm-catalog-datasource serve --config ./config.yaml --debug
+    go run -tags=containers_image_openpgp ./cmd/ratatoskr serve --config ./config.yaml --debug
 
 # Download and verify Go dependencies.
 deps:
@@ -30,7 +30,7 @@ vet:
 
 # Build the static binary in the temporary directory.
 build:
-    CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/olm-catalog-datasource ./cmd/olm-catalog-datasource
+    CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/ratatoskr ./cmd/ratatoskr
 
 # Lint the chart with both CI values fixtures.
 helm-lint:

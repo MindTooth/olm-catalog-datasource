@@ -1,6 +1,6 @@
 # HTTP API guide
 
-This guide describes the HTTP API exposed by `olm-catalog-datasource`. New
+This guide describes the HTTP API exposed by `ratatoskr`. New
 integrations should use v2. The v1 endpoints remain available for existing
 Renovate configurations.
 
@@ -30,7 +30,7 @@ channels:
 ```
 
 ```fish
-go run ./cmd/olm-catalog-datasource serve --config ./config.yaml --debug
+go run ./cmd/ratatoskr serve --config ./config.yaml --debug
 ```
 
 The initial pull and catalog parse can take several minutes. Wait for readiness
@@ -450,7 +450,7 @@ bundle name with the service's `/bundles` endpoint before enabling Renovate.
 
 ```yaml
 # renovate: datasource=custom.olm-channel-graph depName=openshift-gitops-operator
-# olm-catalog-datasource: bundleState=openshift-gitops-operator.v1.20.6
+# ratatoskr: bundleState=openshift-gitops-operator.v1.20.6
 channel: gitops-1.20
 ```
 
@@ -465,12 +465,12 @@ uses `newValue` and `newDigest` so the channel and state marker move together.
       "customType": "regex",
       "managerFilePatterns": ["/\\.ya?ml$/"],
       "matchStrings": [
-        "#[ \\t]*renovate:[ \\t]*datasource=custom\\.olm-channel-graph[ \\t]+depName=(?<depName>[^\\s]+)[ \\t]*\\n#[ \\t]*olm-catalog-datasource:[ \\t]*bundleState=(?<currentDigest>[^\\s]+)[ \\t]*\\n[ \\t]*channel:[ \\t]*(?<currentValue>(?<channelPrefix>[a-z0-9][a-z0-9-]*-)(?<channelVersion>\\d+\\.\\d+)(?<channelSuffix>\\.x)?)"
+        "#[ \\t]*renovate:[ \\t]*datasource=custom\\.olm-channel-graph[ \\t]+depName=(?<depName>[^\\s]+)[ \\t]*\\n#[ \\t]*ratatoskr:[ \\t]*bundleState=(?<currentDigest>[^\\s]+)[ \\t]*\\n[ \\t]*channel:[ \\t]*(?<currentValue>(?<channelPrefix>[a-z0-9][a-z0-9-]*-)(?<channelVersion>\\d+\\.\\d+)(?<channelSuffix>\\.x)?)"
       ],
       "datasourceTemplate": "custom.olm-channel-graph",
       "versioningTemplate": "semver-coerced",
       "registryUrlTemplate": "http://ratatoskr:8080/v1/catalogs/redhat-v4.22/packages/{{{depName}}}/channel-releases?currentChannel={{{currentValue}}}&currentBundle={{{currentDigest}}}&selection=next",
-      "autoReplaceStringTemplate": "# renovate: datasource=custom.olm-channel-graph depName={{{depName}}}\\n# olm-catalog-datasource: bundleState={{{newDigest}}}\\nchannel: {{{channelPrefix}}}{{{newValue}}}{{{channelSuffix}}}"
+      "autoReplaceStringTemplate": "# renovate: datasource=custom.olm-channel-graph depName={{{depName}}}\\n# ratatoskr: bundleState={{{newDigest}}}\\nchannel: {{{channelPrefix}}}{{{newValue}}}{{{channelSuffix}}}"
     }
   ],
   "customDatasources": {
