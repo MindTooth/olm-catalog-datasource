@@ -28,7 +28,9 @@ jobs:
           cache: npm
 
       - name: Install release tooling
-        run: npm ci
+        run: |
+          npm ci
+          npm install --no-save --ignore-scripts @semantic-release/changelog@7.0.0 @semantic-release/git@11.0.1
 
       - name: Create release and determine published version
         id: release
