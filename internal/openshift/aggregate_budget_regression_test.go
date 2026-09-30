@@ -16,7 +16,9 @@ func TestEnrichChangelogsEightTargetsShareAggregateBudget(t *testing.T) {
 		for i := range 100 {
 			fmt.Fprintf(&fixes, `<li><a href="https://issues.redhat.com/browse/OCPBUGS-%d">OCPBUGS-%d</a> - %s</li>`, i, i, strings.Repeat("bounded release note ", 12))
 		}
-		fmt.Fprintf(w, `<html><body><h1>%s - Bug Fix Advisory</h1><h2>Synopsis</h2><p>release %s</p><h2>Type/Severity</h2><p>Bug Fix Advisory</p><h2>Fixes</h2><ul>%s</ul></body></html>`, id, id, fixes.String())
+		if _, err := fmt.Fprintf(w, `<html><body><h1>%s - Bug Fix Advisory</h1><h2>Synopsis</h2><p>release %s</p><h2>Type/Severity</h2><p>Bug Fix Advisory</p><h2>Fixes</h2><ul>%s</ul></body></html>`, id, id, fixes.String()); err != nil {
+			t.Errorf("write advisory response: %v", err)
+		}
 	}))
 	t.Cleanup(server.Close)
 

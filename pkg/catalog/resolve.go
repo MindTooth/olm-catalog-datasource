@@ -156,12 +156,6 @@ func (p *Package) ChannelHeads(name string) []*Bundle {
 	return out
 }
 
-// channelAccepts reports whether the target graph has a reachable, non-deprecated
-// head for the installed bundle.
-func (p *Package) channelAccepts(target *Channel, installed *Bundle) bool {
-	return len(p.channelUpgradeHeads(target, installed)) > 0
-}
-
 // channelUpgradeHeads follows accepted update edges to non-deprecated terminal
 // bundles, ordered by version and name.
 func (p *Package) channelUpgradeHeads(target *Channel, installed *Bundle) []*Bundle {

@@ -95,7 +95,7 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create image registry: %w", err)
 	}
-	defer registry.Destroy()
+	defer func() { _ = registry.Destroy() }() // Best-effort cleanup after catalog acquisition.
 
 	ref := image.SimpleReference(source.Image)
 	if err := registry.Pull(ctx, ref); err != nil {
@@ -113,7 +113,7 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create unpack directory: %w", err)
 	}
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }() // Best-effort cleanup of the unpacked image.
 	if err := registry.Unpack(ctx, ref, root); err != nil {
 		return nil, fmt.Errorf("unpack %q: %w", source.Image, err)
 	}

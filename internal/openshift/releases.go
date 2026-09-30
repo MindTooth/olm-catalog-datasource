@@ -99,7 +99,7 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 	if err != nil {
 		return nil, fmt.Errorf("fetch OpenShift update graph: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }() // Closing a response body does not affect the read result.
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4096))
 		return nil, fmt.Errorf("fetch OpenShift update graph: unexpected HTTP status %s", res.Status)

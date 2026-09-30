@@ -35,7 +35,11 @@ func TestParseAdvisoryHTMLRepresentativeTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer fixture.Close()
+			t.Cleanup(func() {
+				if err := fixture.Close(); err != nil {
+					t.Errorf("close advisory fixture: %v", err)
+				}
+			})
 
 			summary, err := parseAdvisoryHTML(fixture, tc.url)
 			if err != nil {

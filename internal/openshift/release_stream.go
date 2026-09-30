@@ -146,7 +146,7 @@ func (c Client) fetchReleaseControllerTags(ctx context.Context, baseURL, stream 
 	if err != nil {
 		return nil, fmt.Errorf("fetch OpenShift release stream: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }() // Closing a response body does not affect the read result.
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("fetch OpenShift release stream: unexpected HTTP status %s", res.Status)
 	}
