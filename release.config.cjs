@@ -19,6 +19,22 @@ module.exports = {
       '@semantic-release/release-notes-generator',
       {
         preset: 'conventionalcommits',
+        presetConfig: {
+          // build and refactor trigger releases above, so they must also be
+          // visible in the generated release notes and changelog.
+          types: [
+            { type: 'build', section: 'Build System', hidden: false },
+            { type: 'refactor', section: 'Code Refactoring', hidden: false },
+          ],
+        },
+      },
+    ],
+    '@semantic-release/changelog',
+    [
+      '@semantic-release/git',
+      {
+        assets: ['CHANGELOG.md'],
+        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
       },
     ],
     [
