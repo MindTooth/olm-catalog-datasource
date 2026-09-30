@@ -330,7 +330,7 @@ Renovate configuration:
 {
   "customDatasources": {
     "openshift-releases": {
-      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource:8080/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
+      "defaultRegistryUrlTemplate": "http://ratatoskr:8080/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
       "format": "json"
     }
   }
@@ -469,7 +469,7 @@ uses `newValue` and `newDigest` so the channel and state marker move together.
       ],
       "datasourceTemplate": "custom.olm-channel-graph",
       "versioningTemplate": "semver-coerced",
-      "registryUrlTemplate": "http://olm-catalog-datasource:8080/v1/catalogs/redhat-v4.22/packages/{{{depName}}}/channel-releases?currentChannel={{{currentValue}}}&currentBundle={{{currentDigest}}}&selection=next",
+      "registryUrlTemplate": "http://ratatoskr:8080/v1/catalogs/redhat-v4.22/packages/{{{depName}}}/channel-releases?currentChannel={{{currentValue}}}&currentBundle={{{currentDigest}}}&selection=next",
       "autoReplaceStringTemplate": "# renovate: datasource=custom.olm-channel-graph depName={{{depName}}}\\n# olm-catalog-datasource: bundleState={{{newDigest}}}\\nchannel: {{{channelPrefix}}}{{{newValue}}}{{{channelSuffix}}}"
     }
   ],

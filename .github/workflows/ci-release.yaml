@@ -74,8 +74,8 @@ jobs:
 
       - name: Lint the chart with required deployment values
         run: |
-          helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/valid-values.yaml
-          helm lint --strict charts/olm-catalog-datasource --values .github/fixtures/helm/explicit-source-values.yaml
+          helm lint --strict charts/ratatoskr --values .github/fixtures/helm/valid-values.yaml
+          helm lint --strict charts/ratatoskr --values .github/fixtures/helm/explicit-source-values.yaml
 
       - name: Enforce chart version bumps for chart changes
         if: github.event_name == 'pull_request'
@@ -85,22 +85,22 @@ jobs:
 
       - name: Render Kubernetes variants
         run: |
-          helm template olm-catalog-datasource charts/olm-catalog-datasource \
+          helm template ratatoskr charts/ratatoskr \
             --values .github/fixtures/helm/valid-values.yaml \
             > /tmp/chart-standard.yaml
-          helm template olm-catalog-datasource charts/olm-catalog-datasource \
+          helm template ratatoskr charts/ratatoskr \
             --values .github/fixtures/helm/valid-values.yaml \
             --set persistence.enabled=true \
             --set pdb.enabled=true \
             --set replicaCount=2 \
             > /tmp/chart-persistence.yaml
-          helm template olm-catalog-datasource charts/olm-catalog-datasource \
+          helm template ratatoskr charts/ratatoskr \
             --values .github/fixtures/helm/explicit-source-values.yaml \
             > /tmp/chart-explicit-source.yaml
 
       - name: Ensure PodDisruptionBudget requires high availability
         run: |
-          if helm template olm-catalog-datasource charts/olm-catalog-datasource \
+          if helm template ratatoskr charts/ratatoskr \
             --values .github/fixtures/helm/valid-values.yaml \
             --set pdb.enabled=true >/dev/null 2>&1; then
             echo 'pdb.enabled must require replicaCount >= 2' >&2
@@ -109,15 +109,15 @@ jobs:
 
       - name: Render OpenShift route variant
         run: |
-          helm template olm-catalog-datasource charts/olm-catalog-datasource \
+          helm template ratatoskr charts/ratatoskr \
             --values .github/fixtures/helm/valid-values.yaml \
-            --values charts/olm-catalog-datasource/values-openshift.yaml \
+            --values charts/ratatoskr/values-openshift.yaml \
             --api-versions route.openshift.io/v1/Route \
             > /tmp/chart-openshift.yaml
 
       - name: Ensure Route fails without the OpenShift API
         run: |
-          if helm template olm-catalog-datasource charts/olm-catalog-datasource \
+          if helm template ratatoskr charts/ratatoskr \
             --values .github/fixtures/helm/valid-values.yaml \
             --set route.enabled=true >/dev/null 2>&1; then
             echo 'route.enabled must require the OpenShift Route API' >&2

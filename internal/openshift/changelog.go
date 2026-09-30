@@ -222,7 +222,7 @@ func (c Client) fetchChangelog(ctx context.Context, base, advisoryID, canonicalU
 	if err != nil {
 		return "", fmt.Errorf("fetch Red Hat advisory: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }() // Closing a response body does not affect the read result.
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4096))
 		return "", fmt.Errorf("fetch Red Hat advisory: unexpected HTTP status %s", res.Status)
@@ -232,14 +232,14 @@ func (c Client) fetchChangelog(ctx context.Context, base, advisoryID, canonicalU
 		return "", fmt.Errorf("read Red Hat advisory: %w", err)
 	}
 	if len(body) > maxErrataBytes {
-		return "", fmt.Errorf("Red Hat advisory exceeds %d bytes", maxErrataBytes)
+		return "", fmt.Errorf("advisory from Red Hat exceeds %d bytes", maxErrataBytes)
 	}
 	summary, err := parseAdvisoryHTML(strings.NewReader(string(body)), canonicalURL)
 	if err != nil {
 		return "", err
 	}
 	if summary.ID != advisoryID {
-		return "", fmt.Errorf("Red Hat advisory ID %q does not match requested %q", summary.ID, advisoryID)
+		return "", fmt.Errorf("advisory from Red Hat ID %q does not match requested %q", summary.ID, advisoryID)
 	}
 	return renderAdvisoryMarkdown(summary, maxChangelogBytes), nil
 }

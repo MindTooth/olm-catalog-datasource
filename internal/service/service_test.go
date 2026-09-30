@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 func TestResponseRecorderUsesFirstStatusAndCountsBytes(t *testing.T) {

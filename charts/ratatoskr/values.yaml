@@ -1,11 +1,10 @@
 replicaCount: 1
 image:
-  repository: ghcr.io/mindtooth/olm-catalog-datasource
+  repository: ghcr.io/mindtooth/ratatoskr
   tag: ""
   digest: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []
-nameOverride: ""
 fullnameOverride: ""
 serviceAccount:
   create: true

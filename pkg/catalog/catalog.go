@@ -20,7 +20,7 @@ import (
 	"go.podman.io/image/v5/types"
 )
 
-// Source identifies a catalog image. ID is part of the public HTTP API.
+// Source identifies a catalog image. ID is a caller-defined identifier.
 type Source struct {
 	ID       string `yaml:"id" json:"id"`
 	Image    string `yaml:"image" json:"image"`
@@ -34,6 +34,7 @@ type Snapshot struct {
 	Packages    map[string]*Package `json:"packages"`
 }
 
+// Package contains the channels and bundle metadata for an operator.
 type Package struct {
 	Name           string              `json:"name"`
 	DefaultChannel string              `json:"defaultChannel"`
@@ -41,12 +42,14 @@ type Package struct {
 	Bundles        map[string]*Bundle  `json:"bundles"`
 }
 
+// Channel describes a named update graph within a package.
 type Channel struct {
 	Name       string  `json:"name"`
 	Entries    []Entry `json:"entries"`
 	Deprecated bool    `json:"deprecated"`
 }
 
+// Entry describes a bundle and the update edges that lead to it.
 type Entry struct {
 	Name      string   `json:"name"`
 	Replaces  string   `json:"replaces,omitempty"`
@@ -54,6 +57,7 @@ type Entry struct {
 	SkipRange string   `json:"skipRange,omitempty"`
 }
 
+// Bundle contains the release metadata retained from an OLM bundle.
 type Bundle struct {
 	Name       string `json:"name"`
 	Version    string `json:"version"`
@@ -61,6 +65,8 @@ type Bundle struct {
 	Deprecated bool   `json:"deprecated"`
 }
 
+// Reader loads catalog metadata from an OCI image or a file-based catalog.
+// Its zero value uses the default image signature policy and two parsing workers.
 type Reader struct {
 	SignaturePolicy  string
 	ParseConcurrency int
@@ -89,7 +95,7 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create image registry: %w", err)
 	}
-	defer registry.Destroy()
+	defer func() { _ = registry.Destroy() }() // Best-effort cleanup after catalog acquisition.
 
 	ref := image.SimpleReference(source.Image)
 	if err := registry.Pull(ctx, ref); err != nil {
@@ -107,7 +113,7 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create unpack directory: %w", err)
 	}
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }() // Best-effort cleanup of the unpacked image.
 	if err := registry.Unpack(ctx, ref, root); err != nil {
 		return nil, fmt.Errorf("unpack %q: %w", source.Image, err)
 	}
@@ -116,13 +122,20 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 		return nil, fmt.Errorf("catalog config path: %w", err)
 	}
 
+	return r.ReadFS(ctx, source, os.DirFS(configRoot))
+}
+
+// ReadFS reads an unpacked file-based catalog rooted at configs. Source is
+// retained as snapshot metadata; it is not pulled or validated. Parsing uses
+// the same concurrency and normalization as Read, without registry access.
+func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snapshot, error) {
 	s := &Snapshot{Source: source, GeneratedAt: time.Now().UTC(), Packages: map[string]*Package{}}
 	var mu sync.Mutex
 	concurrency := r.ParseConcurrency
 	if concurrency < 1 {
 		concurrency = 2
 	}
-	err = declcfg.WalkMetasFS(ctx, os.DirFS(configRoot), func(_ string, meta *declcfg.Meta, walkErr error) error {
+	err := declcfg.WalkMetasFS(ctx, configs, func(_ string, meta *declcfg.Meta, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -141,6 +154,7 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 	return s, nil
 }
 
+// parsePlatform splits an OCI platform into OS, architecture, and optional variant.
 func parsePlatform(value string) (osChoice, architectureChoice, variantChoice string, err error) {
 	parts := strings.Split(value, "/")
 	if len(parts) < 2 || len(parts) > 3 || parts[0] == "" || parts[1] == "" || (len(parts) == 3 && parts[2] == "") {
@@ -191,6 +205,7 @@ type rawProperty struct {
 	Value json.RawMessage `json:"value"`
 }
 
+// addMeta merges supported FBC records into the snapshot, ignoring unknown schemas.
 func addMeta(s *Snapshot, schema string, blob []byte) error {
 	switch schema {
 	case "olm.package":
@@ -227,6 +242,7 @@ func addMeta(s *Snapshot, schema string, blob []byte) error {
 	return nil
 }
 
+// ensurePackage returns the named package, creating its maps for out-of-order records.
 func ensurePackage(s *Snapshot, name string) *Package {
 	if p := s.Packages[name]; p != nil {
 		return p
@@ -236,6 +252,7 @@ func ensurePackage(s *Snapshot, name string) *Package {
 	return p
 }
 
+// packageVersion extracts the version from the first decodable olm.package property.
 func packageVersion(props []rawProperty) string {
 	for _, p := range props {
 		if p.Type != "olm.package" {
@@ -250,6 +267,3 @@ func packageVersion(props []rawProperty) string {
 	}
 	return ""
 }
-
-// Keep fs imported by this package's public behaviour documentation stable.
-var _ fs.FS

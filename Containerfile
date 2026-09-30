@@ -12,4 +12,4 @@ COPY --from=build /tmp/olm-catalog-datasource /usr/local/bin/olm-catalog-datasou
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/olm-catalog-datasource"]
-CMD ["serve", "--config", "/etc/olm-catalog-datasource/config.yaml"]
+CMD ["serve", "--config", "/etc/ratatoskr/config.yaml"]

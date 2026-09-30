@@ -1,8 +1,11 @@
-# OLM catalog datasource
+![Ratatoskr, a squirrel carrying a letter beneath Yggdrasil](assets/images/ratatoskr-banner.jpg)
 
-`olm-catalog-datasource` is a native Go service for exposing OpenShift cluster
-releases and file-based operator catalog updates to Renovate. Cluster releases
-come from the official OpenShift update graph. Operator catalogs are pulled
+# ratatoskr
+
+`ratatoskr` provides OpenShift release and OLM catalog version logic
+for Go applications. Its `olm-catalog-datasource` service exposes OpenShift
+cluster releases and file-based operator catalog updates to Renovate. Cluster
+releases come from the official OpenShift update graph. Operator catalogs are pulled
 through the upstream Operator Framework image libraries; the service does not
 execute `opm`, `oc-mirror`, or a container client.
 
@@ -16,6 +19,20 @@ copy-ready `curl` example.
 The service returns only versions connected to the current bundle by declared
 `replaces`, `skips`, or `skipRange` edges. It deliberately does not treat every
 newer catalog version as an upgrade.
+
+## About the name
+
+Ratatoskr is the squirrel of Norse mythology who travels along Yggdrasil, the
+world tree, carrying messages between the eagle in its branches and Níðhöggr
+beneath its roots. His journey appears in [*Grímnismál*, stanza 32](https://sacred-texts.com/neu/poe/poe06.htm)
+and [*Gylfaginning*, chapter 16](https://en.wikisource.org/wiki/The_Prose_Edda_(1916_translation_by_Arthur_Gilchrist_Brodeur)/Gylfaginning).
+
+For this project, the name celebrates the messenger: a small, tireless traveller
+through a branching world, bringing news from one place to another. `ratatoskr`
+follows the paths through OpenShift release graphs and operator catalogs,
+carrying version information to the tools that need it. The tree is our
+metaphor for connected releases; the squirrel is our reminder to keep the
+messenger small and useful.
 
 ## Status
 
@@ -112,7 +129,7 @@ OpenShift cluster releases require only a channel and the installed version:
 {
   "customDatasources": {
     "openshift-releases": {
-      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
+      "defaultRegistryUrlTemplate": "http://ratatoskr.example/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
       "format": "json"
     }
   }
@@ -129,7 +146,7 @@ Operator catalog releases use the catalog endpoints:
 {
   "customDatasources": {
     "openshift-operators-v4-22": {
-      "defaultRegistryUrlTemplate": "http://olm-catalog-datasource.example/v2/catalogs/redhat/4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&operatorChannel=gitops-1.20&mode=reachable",
+      "defaultRegistryUrlTemplate": "http://ratatoskr.example/v2/catalogs/redhat/4.22/packages/{{packageName}}/updates?currentVersion={{currentValue}}&operatorChannel=gitops-1.20&mode=reachable",
       "format": "json"
     }
   }
@@ -180,6 +197,49 @@ The package response is compact by default. `include=channels` adds channel
 heads and deprecation state, `include=bundles` adds bundle metadata, and
 `include=graph` adds the raw `replaces`, `skips`, and `skipRange` edges. Exact
 custom source IDs use the equivalent `/v2/sources/{source}` routes.
+
+## Go package
+
+Other Go applications can import
+`github.com/MindTooth/ratatoskr/pkg/catalog` without starting the
+datasource server or accessing a cluster:
+
+```go
+reader := catalog.Reader{SignaturePolicy: "/etc/containers/policy.json"}
+snapshot, err := reader.Read(ctx, catalog.Source{
+    ID:    "redhat-operators-v4.20",
+    Image: "registry.redhat.io/redhat/redhat-operator-index:v4.20",
+})
+if err != nil {
+    return err
+}
+pkg := snapshot.Packages["openshift-gitops-operator"]
+if pkg == nil {
+    return fmt.Errorf("operator is not in the catalog")
+}
+versions, err := pkg.VersionUpdates(catalog.UpdateRequest{
+    Channel:        "latest",
+    CurrentVersion: "1.18.0",
+    Mode:           "reachable",
+})
+```
+
+For unpacked FBC data, use `reader.ReadFS(ctx, catalog.Source{ID: "local"},
+os.DirFS("/path/to/configs"))`. Both entry points use the same parser.
+`Snapshot.Packages` exposes channels and bundle metadata; `ChannelHeads` returns
+terminal bundles, and `ChannelReleases` resolves graph-valid channel transitions.
+`VersionUpdates` includes the current version and graph successors, defaults to
+the package's default channel, and retains the existing version ordering.
+
+Build consumers with `-tags=containers_image_openpgp`, as with the datasource.
+Image loading uses the existing registry authentication and signature policy
+behavior. Consumers own refresh scheduling and snapshot caching. The package
+does not import the service or its Renovate response types.
+
+OLM bundle metadata currently includes names, versions, images, and deprecation
+fields. Changelog titles and errata enrichment belong to the separate OpenShift
+release datasource and are unchanged by this package extraction. Cluster state
+collection and Prometheus metrics are outside the package's scope.
 
 ## Security
 

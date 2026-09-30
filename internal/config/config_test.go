@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MindTooth/olm-catalog-datasource/internal/catalog"
+	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
 func TestExampleConfig(t *testing.T) {

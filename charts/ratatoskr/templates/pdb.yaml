@@ -20,13 +20,13 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "olm-catalog-datasource.fullname" . }}
+  name: {{ include "ratatoskr.fullname" . }}
   labels:
-    {{- include "olm-catalog-datasource.labels" . | nindent 4 }}
+    {{- include "ratatoskr.labels" . | nindent 4 }}
 spec:
   maxUnavailable: {{ .Values.pdb.maxUnavailable }}
   unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
-      {{- include "olm-catalog-datasource.selectorLabels" . | nindent 6 }}
+      {{- include "ratatoskr.selectorLabels" . | nindent 6 }}
 {{- end }}

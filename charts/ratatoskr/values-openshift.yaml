@@ -1,5 +1,5 @@
 image:
-  repository: registry.example/olm-catalog-datasource
+  repository: registry.example/ratatoskr
   tag: v0.0.0
 signaturePolicy:
   existingConfigMap: olm-catalog-policy
