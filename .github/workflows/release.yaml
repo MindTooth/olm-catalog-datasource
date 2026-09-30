@@ -75,7 +75,7 @@ jobs:
       - container-publish
     if: >-
       always() &&
-needs.release.result == 'success' &&
+      needs.release.result == 'success' &&
       (needs.container-publish.result == 'success' || needs.container-publish.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
