@@ -28,6 +28,7 @@ module.exports = {
             { type: 'build', section: 'Changed', hidden: false },
             { type: 'perf', section: 'Changed', hidden: false },
             { type: 'refactor', section: 'Changed', hidden: false },
+            { type: 'revert', section: 'Changed', hidden: false },
             { type: 'chore', hidden: true },
             { type: 'ci', hidden: true },
             { type: 'docs', hidden: true },
