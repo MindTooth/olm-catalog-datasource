@@ -41,7 +41,7 @@ jobs:
         run: go test -race -tags=containers_image_openpgp -coverprofile=coverage.out ./...
 
       - name: Build production binary
-        run: CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/olm-catalog-datasource ./cmd/olm-catalog-datasource
+        run: CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/ratatoskr ./cmd/ratatoskr
 
   lint:
     name: Go lint

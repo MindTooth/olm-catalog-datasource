@@ -140,7 +140,7 @@ platform: linux/arm64
 ## 5. Run and verify locally
 
 ```fish
-go run ./cmd/olm-catalog-datasource serve --config ./config.yaml --debug
+go run ./cmd/ratatoskr serve --config ./config.yaml --debug
 ```
 
 ### Updating configuration without restarting
@@ -160,10 +160,10 @@ process restart because the HTTP listener is already bound.
 To tune the check period or turn it off:
 
 ```fish
-go run ./cmd/olm-catalog-datasource serve --config ./config.yaml \
+go run ./cmd/ratatoskr serve --config ./config.yaml \
   --config-reload-interval 10s
 
-go run ./cmd/olm-catalog-datasource serve --config ./config.yaml \
+go run ./cmd/ratatoskr serve --config ./config.yaml \
   --config-reload-interval 0
 ```
 

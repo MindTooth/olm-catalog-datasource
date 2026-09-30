@@ -34,7 +34,7 @@ func main() {
 	case "channel-query":
 		channelQuery(os.Args[2:])
 	case "version":
-		fmt.Println("olm-catalog-datasource dev")
+		fmt.Println("ratatoskr dev")
 	default:
 		usage()
 		os.Exit(2)
@@ -255,5 +255,5 @@ func writeReleases(values []string) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: olm-catalog-datasource {serve|refresh|query|channel-query|version}")
+	fmt.Fprintln(os.Stderr, "usage: ratatoskr {serve|refresh|query|channel-query|version}")
 }
