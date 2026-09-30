@@ -49,4 +49,21 @@ entries:
     urls:
     - https://github.com/MindTooth/olm-catalog-datasource/releases/download/chart-olm-catalog-datasource-0.2.0/olm-catalog-datasource-0.2.0.tgz
     version: 0.2.0
-generated: "2026-08-22T10:47:00.587319658Z"
+  ratatoskr:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-09-30T00:19:35.084121Z"
+    description: OpenShift-ready deployment for the OLM catalog datasource
+    digest: e87422fc02dd79cf295c2d8b653f42141d948a3183fabde7f12e6dc270ab592b
+    home: https://github.com/MindTooth/ratatoskr
+    kubeVersion: '>=1.28.0-0'
+    maintainers:
+    - name: MindTooth
+    name: ratatoskr
+    sources:
+    - https://github.com/MindTooth/ratatoskr
+    type: application
+    urls:
+    - https://github.com/MindTooth/ratatoskr/releases/download/chart-ratatoskr-0.3.1/ratatoskr-0.3.1.tgz
+    version: 0.3.1
+generated: "2026-09-30T00:19:35.084128434Z"
