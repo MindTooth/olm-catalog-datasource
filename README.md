@@ -261,3 +261,13 @@ upgrade.
 The `Containerfile` builds a static binary and runs it without a shell or
 fixed root UID. Mount a writable `/tmp`, a cache volume through `OLM_CACHE_DIR`,
 the configuration file, and registry authentication or policy files as needed.
+
+## AI use
+
+AI tools may be used to assist development. AI-assisted changes are reviewed
+before they are accepted, and responsibility for the resulting code remains
+with the project maintainers and contributors.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
