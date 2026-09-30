@@ -10,7 +10,8 @@ import (
 	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
-// Exercise the public loading and query API without a registry, server, or cluster.
+// TestReadFSAndResolve verifies catalog normalization and graph queries through the
+// public API without registry, server, or cluster access.
 func TestReadFSAndResolve(t *testing.T) {
 	configs := fstest.MapFS{
 		"operator/catalog.json": {Data: []byte(`
@@ -58,6 +59,8 @@ func TestReadFSAndResolve(t *testing.T) {
 	}
 }
 
+// TestReadFSErrors verifies that malformed catalog input returns an error without a
+// partial snapshot.
 func TestReadFSErrors(t *testing.T) {
 	for name, configs := range map[string]fs.FS{
 		"malformed JSON":   fstest.MapFS{"catalog.json": {Data: []byte(`{`)}},

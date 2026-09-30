@@ -154,6 +154,7 @@ func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snap
 	return s, nil
 }
 
+// parsePlatform splits an OCI platform into OS, architecture, and optional variant.
 func parsePlatform(value string) (osChoice, architectureChoice, variantChoice string, err error) {
 	parts := strings.Split(value, "/")
 	if len(parts) < 2 || len(parts) > 3 || parts[0] == "" || parts[1] == "" || (len(parts) == 3 && parts[2] == "") {
@@ -204,6 +205,7 @@ type rawProperty struct {
 	Value json.RawMessage `json:"value"`
 }
 
+// addMeta merges supported FBC records into the snapshot, ignoring unknown schemas.
 func addMeta(s *Snapshot, schema string, blob []byte) error {
 	switch schema {
 	case "olm.package":
@@ -240,6 +242,7 @@ func addMeta(s *Snapshot, schema string, blob []byte) error {
 	return nil
 }
 
+// ensurePackage returns the named package, creating its maps for out-of-order records.
 func ensurePackage(s *Snapshot, name string) *Package {
 	if p := s.Packages[name]; p != nil {
 		return p
@@ -249,6 +252,7 @@ func ensurePackage(s *Snapshot, name string) *Package {
 	return p
 }
 
+// packageVersion extracts the version from the first decodable olm.package property.
 func packageVersion(props []rawProperty) string {
 	for _, p := range props {
 		if p.Type != "olm.package" {

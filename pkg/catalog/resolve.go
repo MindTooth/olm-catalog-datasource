@@ -156,10 +156,14 @@ func (p *Package) ChannelHeads(name string) []*Bundle {
 	return out
 }
 
+// channelAccepts reports whether the target graph has a reachable, non-deprecated
+// head for the installed bundle.
 func (p *Package) channelAccepts(target *Channel, installed *Bundle) bool {
 	return len(p.channelUpgradeHeads(target, installed)) > 0
 }
 
+// channelUpgradeHeads follows accepted update edges to non-deprecated terminal
+// bundles, ordered by version and name.
 func (p *Package) channelUpgradeHeads(target *Channel, installed *Bundle) []*Bundle {
 	queue := []string{}
 	for _, entry := range target.Entries {
@@ -190,6 +194,8 @@ func (p *Package) channelUpgradeHeads(target *Channel, installed *Bundle) []*Bun
 	return heads
 }
 
+// nextChannelRelease selects the next higher version in the current channel family,
+// falling back to the first different channel.
 func nextChannelRelease(current string, candidates []ChannelRelease) []ChannelRelease {
 	prefix, currentVersion, currentHasVersion := channelSuffix(current)
 	if currentHasVersion {
@@ -208,6 +214,8 @@ func nextChannelRelease(current string, candidates []ChannelRelease) []ChannelRe
 	return nil
 }
 
+// bundleLess orders bundles by strict semantic version, placing invalid versions
+// first and breaking ties by name.
 func bundleLess(a, b *Bundle) bool {
 	av, aerr := semver.StrictNewVersion(a.Version)
 	bv, berr := semver.StrictNewVersion(b.Version)
@@ -223,6 +231,8 @@ func bundleLess(a, b *Bundle) bool {
 	return a.Name < b.Name
 }
 
+// currentBundle resolves an explicit bundle or an unambiguous version within the
+// channel; an explicit bundle takes precedence.
 func (p *Package) currentBundle(ch *Channel, name, version string) (*Bundle, error) {
 	if name == "" && version == "" {
 		return nil, errors.New("currentBundle or currentVersion is required")
@@ -253,6 +263,7 @@ func (p *Package) currentBundle(ch *Channel, name, version string) (*Bundle, err
 	return found, nil
 }
 
+// channelContains reports whether the channel declares an entry for the bundle.
 func channelContains(ch *Channel, bundle string) bool {
 	for _, entry := range ch.Entries {
 		if entry.Name == bundle {
@@ -262,6 +273,8 @@ func channelContains(ch *Channel, bundle string) bool {
 	return false
 }
 
+// successors returns bundles accepted by replaces, skips, or skipRange edges from
+// the current bundle.
 func (p *Package) successors(ch *Channel, name, version string) []*Bundle {
 	var out []*Bundle
 	for _, e := range ch.Entries {
@@ -276,12 +289,15 @@ func (p *Package) successors(ch *Channel, name, version string) []*Bundle {
 	return out
 }
 
+// bundleVersion returns the bundle version, or an empty string for a missing bundle.
 func bundleVersion(b *Bundle) string {
 	if b == nil {
 		return ""
 	}
 	return b.Version
 }
+
+// contains reports whether the slice includes the requested string.
 func contains(xs []string, want string) bool {
 	for _, x := range xs {
 		if x == want {
@@ -290,6 +306,9 @@ func contains(xs []string, want string) bool {
 	}
 	return false
 }
+
+// rangeMatches checks an OLM skip range against a strict semantic version, including
+// prereleases; invalid inputs do not match.
 func rangeMatches(expr, version string) bool {
 	if expr == "" || version == "" {
 		return false
@@ -307,6 +326,9 @@ func rangeMatches(expr, version string) bool {
 	r.IncludePrerelease = true
 	return r.Check(v)
 }
+
+// sortVersions sorts semantic versions in ascending order, followed by invalid
+// versions in lexical order.
 func sortVersions(xs []string) {
 	sort.Slice(xs, func(i, j int) bool {
 		a, ea := semver.StrictNewVersion(xs[i])
@@ -324,6 +346,7 @@ func sortVersions(xs []string) {
 	})
 }
 
+// channelLess compares version suffixes within a channel family and otherwise uses lexical order.
 func channelLess(a, b string) bool {
 	pa, va, oka := channelSuffix(a)
 	pb, vb, okb := channelSuffix(b)
@@ -333,6 +356,7 @@ func channelLess(a, b string) bool {
 	return a < b
 }
 
+// channelCandidateLess places the current channel family first, then applies channel ordering.
 func channelCandidateLess(current, a, b string) bool {
 	prefix, _, hasVersion := channelSuffix(current)
 	if hasVersion {
@@ -351,6 +375,7 @@ func channelCandidateLess(current, a, b string) bool {
 // falls back to lexical ordering for names without comparable suffixes.
 func ChannelLess(a, b string) bool { return channelLess(a, b) }
 
+// channelSuffix extracts a version after the final hyphen and the channel family preceding it.
 func channelSuffix(s string) (string, *semver.Version, bool) {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] != '-' {
@@ -365,6 +390,8 @@ func channelSuffix(s string) (string, *semver.Version, bool) {
 	return "", nil, false
 }
 
+// parseChannelVersion normalizes abbreviated and wildcard channel versions to a
+// strict semantic version.
 func parseChannelVersion(value string) (*semver.Version, bool) {
 	if version, err := semver.StrictNewVersion(value); err == nil {
 		return version, true
