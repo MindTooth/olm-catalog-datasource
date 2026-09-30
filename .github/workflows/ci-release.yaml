@@ -48,7 +48,7 @@ jobs:
 
   lint:
     name: Go lint
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
