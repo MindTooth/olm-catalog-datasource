@@ -25,17 +25,17 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
-          cache: npm
+          cache: pnpm
 
       - name: Install release tooling
-        run: npm ci
+        run: pnpm ci
 
       - name: Create release and determine published version
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm run release
+          pnpm run release
           git fetch --force --tags origin
           tag="$(git tag --points-at HEAD --list 'v[0-9]*' --sort=-version:refname | head -n 1)"
           if [[ -n "$tag" ]]; then
