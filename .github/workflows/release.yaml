@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: pnpm/setup@v1
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3
         with:
           cache: true
           require-lockfile: true
