@@ -53,6 +53,8 @@ For bug fixes, add a regression test when practical. Prefer local fixtures, `htt
 
 Treat exported `pkg/catalog` APIs, CLI flags, HTTP/JSON behavior, config keys/defaults, Helm values, and Renovate datasource semantics as compatibility surfaces. Update tests and docs when changing them.
 
+Keep documentation examples aligned with current behavior. When changing CLI flags, configuration, API responses, Helm values, or Renovate integration, search `README.md` and `docs/` for affected examples and update them in the same change. Prefer copyable examples; do not document unsupported behavior.
+
 ## Verification
 
 Run the narrowest relevant checks while iterating, then the applicable CI checks before finishing.
@@ -75,7 +77,9 @@ helm lint --strict charts/ratatoskr --values .github/fixtures/helm/valid-values.
 helm lint --strict charts/ratatoskr --values .github/fixtures/helm/explicit-source-values.yaml
 ```
 
-Render affected variants for template/schema changes. Chart changes require a version bump in `charts/ratatoskr/Chart.yaml`.
+Render affected variants for template/schema changes.
+
+Bump `charts/ratatoskr/Chart.yaml` when the packaged chart changes, including templates, values/defaults, schema, chart metadata, or chart-shipped files. Do not bump it for application-only, repository-only, or documentation-only changes that do not alter the chart package.
 
 Do not claim a check passed unless it was actually run.
 
