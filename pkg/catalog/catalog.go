@@ -75,6 +75,9 @@ type Reader struct {
 // Read pulls, unpacks, and streams FBC metadata. It deliberately avoids action.Render,
 // which constructs a complete DeclarativeConfig including large bundle objects.
 func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if source.ID == "" || source.Image == "" {
 		return nil, fmt.Errorf("catalog source requires id and image")
 	}
@@ -129,6 +132,9 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 // retained as snapshot metadata; it is not pulled or validated. Parsing uses
 // the same concurrency and normalization as Read, without registry access.
 func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s := &Snapshot{Source: source, GeneratedAt: time.Now().UTC(), Packages: map[string]*Package{}}
 	var mu sync.Mutex
 	concurrency := r.ParseConcurrency
@@ -146,8 +152,19 @@ func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snap
 	if err != nil {
 		return nil, fmt.Errorf("read FBC: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("read FBC: %w", err)
+	}
 	for _, p := range s.Packages {
+		if p.DefaultChannel == "" || p.Channels[p.DefaultChannel] == nil {
+			return nil, fmt.Errorf("read FBC: package %q has no default channel metadata", p.Name)
+		}
 		for _, ch := range p.Channels {
+			for _, entry := range ch.Entries {
+				if p.Bundles[entry.Name] == nil {
+					return nil, fmt.Errorf("read FBC: channel %q in package %q references missing bundle %q", ch.Name, p.Name, entry.Name)
+				}
+			}
 			sort.Slice(ch.Entries, func(i, j int) bool { return ch.Entries[i].Name < ch.Entries[j].Name })
 		}
 	}
@@ -237,7 +254,13 @@ func addMeta(s *Snapshot, schema string, blob []byte) error {
 			return fmt.Errorf("bundle metadata is incomplete")
 		}
 		p := ensurePackage(s, v.Package)
-		p.Bundles[v.Name] = &Bundle{Name: v.Name, Version: packageVersion(v.Properties), Image: v.Image}
+		version, err := packageVersion(v.Properties)
+		if err != nil {
+			return fmt.Errorf("bundle %q: %w", v.Name, err)
+		}
+		p.Bundles[v.Name] = &Bundle{Name: v.Name, Version: version, Image: v.Image}
+	case "":
+		return fmt.Errorf("catalog metadata has no schema")
 	}
 	return nil
 }
@@ -252,8 +275,8 @@ func ensurePackage(s *Snapshot, name string) *Package {
 	return p
 }
 
-// packageVersion extracts the version from the first decodable olm.package property.
-func packageVersion(props []rawProperty) string {
+// packageVersion requires a version in the bundle's olm.package property.
+func packageVersion(props []rawProperty) (string, error) {
 	for _, p := range props {
 		if p.Type != "olm.package" {
 			continue
@@ -261,9 +284,13 @@ func packageVersion(props []rawProperty) string {
 		var v struct {
 			Version string `json:"version"`
 		}
-		if json.Unmarshal(p.Value, &v) == nil {
-			return v.Version
+		if err := json.Unmarshal(p.Value, &v); err != nil {
+			return "", fmt.Errorf("decode olm.package property: %w", err)
 		}
+		if v.Version != "" {
+			return v.Version, nil
+		}
+		return "", fmt.Errorf("olm.package property has no version")
 	}
-	return ""
+	return "", fmt.Errorf("olm.package property is missing")
 }

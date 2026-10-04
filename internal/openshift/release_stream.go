@@ -2,9 +2,7 @@ package openshift
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -31,31 +29,31 @@ type releaseStreamRelease struct {
 // addReleaseStreamHistory adds accepted releases that Cincinnati omits as
 // deprecated changelog-only entries. Graph releases stay eligible and retain
 // their graph metadata; advisory content is fetched separately for all entries.
-func (c Client) addReleaseStreamHistory(ctx context.Context, architecture, currentVersion string, advisoryURLs map[string]string, releases []Release) []Release {
+func (c Client) addReleaseStreamHistory(ctx context.Context, architecture, currentVersion string, advisoryURLs map[string]string, releases []Release) ([]Release, error) {
 	if len(releases) < 2 {
-		return releases
+		return releases, nil
 	}
 	// A graph override is often a private or test graph. It does not imply that
 	// the public release-controller stream describes the same releases.
 	if c.GraphURL != "" && c.GraphURL != DefaultGraphURL && c.ReleaseControllerURL == "" {
-		return releases
+		return releases, nil
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, changelogFetchTimeout)
 	defer cancel()
 	baseURL, stream, ok := c.releaseControllerSource(architecture)
 	if !ok {
-		return releases
+		return releases, nil
 	}
 	tags, err := c.fetchReleaseControllerTags(ctx, baseURL, stream)
 	if err != nil {
-		return releases
+		return nil, err
 	}
 
 	limit := latestVersion(releases)
 	entries := streamReleasesBetween(tags, currentVersion, limit)
 	if len(entries) == 0 {
-		return releases
+		return releases, nil
 	}
 
 	positions := make(map[string]int, len(releases))
@@ -72,7 +70,7 @@ func (c Client) addReleaseStreamHistory(ctx context.Context, architecture, curre
 			ChangelogURL: advisoryURLs[entry.version],
 		})
 	}
-	return releases
+	return releases, nil
 }
 
 func (c Client) releaseControllerSource(architecture string) (baseURL, stream string, ok bool) {
@@ -151,9 +149,16 @@ func (c Client) fetchReleaseControllerTags(ctx context.Context, baseURL, stream 
 		return nil, fmt.Errorf("fetch OpenShift release stream: unexpected HTTP status %s", res.Status)
 	}
 	var payload releaseControllerTags
-	decoder := json.NewDecoder(io.LimitReader(res.Body, maxReleaseControllerBytes+1))
-	if err := decoder.Decode(&payload); err != nil {
+	if err := decodeReleaseData(res.Body, maxReleaseControllerBytes, &payload); err != nil {
 		return nil, fmt.Errorf("decode OpenShift release stream: %w", err)
+	}
+	if payload.Tags == nil {
+		return nil, fmt.Errorf("decode OpenShift release stream: tags are missing or null")
+	}
+	for _, tag := range payload.Tags {
+		if tag.Name == "" || tag.Phase == "" {
+			return nil, fmt.Errorf("decode OpenShift release stream: tag metadata is incomplete")
+		}
 	}
 	return payload.Tags, nil
 }

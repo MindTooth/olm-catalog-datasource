@@ -48,7 +48,7 @@ type Release struct {
 
 type graph struct {
 	Nodes []node   `json:"nodes"`
-	Edges [][2]int `json:"edges"`
+	Edges [][]*int `json:"edges"`
 }
 
 type node struct {
@@ -106,9 +106,29 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 	}
 
 	var g graph
-	decoder := json.NewDecoder(io.LimitReader(res.Body, maxGraphBytes+1))
-	if err := decoder.Decode(&g); err != nil {
+	if err := decodeReleaseData(res.Body, maxGraphBytes, &g); err != nil {
 		return nil, fmt.Errorf("decode OpenShift update graph: %w", err)
+	}
+	if g.Nodes == nil || g.Edges == nil {
+		return nil, fmt.Errorf("decode OpenShift update graph: nodes or edges are missing or null")
+	}
+	versions := make(map[string]bool, len(g.Nodes))
+	for _, n := range g.Nodes {
+		if n.Version == "" {
+			return nil, fmt.Errorf("decode OpenShift update graph: node version is missing")
+		}
+		if versions[n.Version] {
+			return nil, fmt.Errorf("decode OpenShift update graph: duplicate node version %q", n.Version)
+		}
+		versions[n.Version] = true
+	}
+	for _, edge := range g.Edges {
+		if len(edge) != 2 || edge[0] == nil || edge[1] == nil {
+			return nil, fmt.Errorf("decode OpenShift update graph: edge must contain two indexes")
+		}
+		if *edge[0] < 0 || *edge[0] >= len(g.Nodes) || *edge[1] < 0 || *edge[1] >= len(g.Nodes) {
+			return nil, fmt.Errorf("decode OpenShift update graph: edge index is out of range")
+		}
 	}
 
 	current := -1
@@ -124,11 +144,8 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 
 	targetIndexes := map[int]bool{}
 	for _, edge := range g.Edges {
-		if edge[0] < 0 || edge[0] >= len(g.Nodes) || edge[1] < 0 || edge[1] >= len(g.Nodes) {
-			return nil, fmt.Errorf("decode OpenShift update graph: edge index is out of range")
-		}
-		if edge[0] == current && edge[1] != current {
-			targetIndexes[edge[1]] = true
+		if *edge[0] == current && *edge[1] != current {
+			targetIndexes[*edge[1]] = true
 		}
 	}
 
@@ -150,10 +167,26 @@ func (c Client) Updates(ctx context.Context, req UpdateRequest) ([]Release, erro
 			advisoryURLs[node.Version] = node.Metadata["url"]
 		}
 	}
-	out = c.addReleaseStreamHistory(ctx, req.Architecture, req.CurrentVersion, advisoryURLs, out)
+	out, err = c.addReleaseStreamHistory(ctx, req.Architecture, req.CurrentVersion, advisoryURLs, out)
+	if err != nil {
+		return nil, err
+	}
 	sortReleases(out)
 	c.enrichChangelogs(ctx, out[1:])
 	return out, nil
+}
+
+// decodeReleaseData requires one complete JSON document within the size limit.
+// Reading the full body also catches transport failures after a valid JSON prefix.
+func decodeReleaseData(body io.Reader, limit int64, value any) error {
+	data, err := io.ReadAll(io.LimitReader(body, limit+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(data)) > limit {
+		return fmt.Errorf("response exceeds %d bytes", limit)
+	}
+	return json.Unmarshal(data, value)
 }
 
 func releaseFromNode(n node) Release {

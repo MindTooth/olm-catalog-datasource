@@ -212,6 +212,10 @@ curl --fail-with-body --get \
   --data-urlencode 'mode=reachable'
 ```
 
+Configure the [required Renovate fail-safe host rule](../README.md#renovate)
+with `abortOnError: true` before using these endpoints as custom datasources.
+Lookup failures return `503`; Renovate must abort the run on these failures.
+
 An empty `{"releases":[]}` is a valid result: the selected channel does not
 declare a usable path from that installed release.
 

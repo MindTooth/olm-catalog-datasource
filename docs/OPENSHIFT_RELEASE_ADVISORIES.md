@@ -26,7 +26,11 @@ When at least one update is returned, the response also has a top-level `changel
 
 Red Hat errata pages are the only source of embedded changelog content. Advisory requests share a five-second lookup budget and at most four run at once. Embedded summaries are bounded per release and across the response. The graph lookup remains governed by `openshiftTimeout` (30 seconds by default).
 
-If stream discovery or an individual advisory request fails, the update response is still successful. Cincinnati targets remain present with their existing digest and advisory link. A release without a successfully parsed advisory simply has no `changelogContent`.
+Graph or stream-discovery failures return `503 Service Unavailable` without a release list. Stream discovery supplies release identities, so falling back to only Cincinnati targets would produce an incomplete datasource response. Missing/null arrays, malformed or oversized payloads, and body-read failures are also lookup failures; explicit empty arrays are valid data.
+
+An individual advisory request can still fail without failing the response: it only supplies optional text. The complete discovered release set remains present with its existing eligibility, digest, and advisory link. A release without a successfully parsed advisory simply has no `changelogContent`.
+
+Renovate must configure the Ratatoskr hostname with `abortOnError: true` and must not ignore 5xx statuses. See the [required fail-safe host rule](../README.md#renovate).
 
 ## Cache behavior
 
