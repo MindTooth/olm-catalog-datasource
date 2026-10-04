@@ -39,7 +39,9 @@ See `docs/OPENSHIFT_RELEASE_ADVISORIES.md` before changing this behavior.
 
 - Keep configuration strict; unknown fields are errors.
 - Preserve generated catalog sources versus explicit source overrides.
-- Invalid reloads must not replace the last valid configuration.
+- Validate relationships using effective values after defaults and fallbacks. `maxSnapshotAge` must exceed the effective `refreshInterval + refreshTimeout`; preserve overflow-safe validation.
+- Apply the same validation at startup and reload; invalid reloads must retain the last valid configuration.
+- Test defaults, invalid combinations, exact boundaries, fallbacks, and overflow.
 - Keep refresh work bounded.
 - Do not weaken registry authentication, TLS, signature-policy, or refresh-token behavior.
 
@@ -53,7 +55,7 @@ For bug fixes, add a regression test when practical. Prefer local fixtures, `htt
 
 Treat exported `pkg/catalog` APIs, CLI flags, HTTP/JSON behavior, config keys/defaults, Helm values, and Renovate datasource semantics as compatibility surfaces. Update tests and docs when changing them.
 
-Keep documentation examples aligned with current behavior. When changing CLI flags, configuration, API responses, Helm values, or Renovate integration, search `README.md` and `docs/` for affected examples and update them in the same change. Prefer copyable examples; do not document unsupported behavior.
+When changing CLI, configuration, API, Helm, or Renovate behavior, update affected examples in `README.md`, `docs/`, and `config.example.yaml` in the same change. Keep examples copyable and supported.
 
 ## Verification
 
@@ -62,8 +64,9 @@ Run the narrowest relevant checks while iterating, then the applicable CI checks
 Go:
 
 ```sh
+go mod download
 go mod verify
-go test -race -tags=containers_image_openpgp ./...
+go test -race -tags=containers_image_openpgp -coverprofile=coverage.out ./...
 CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/ratatoskr ./cmd/ratatoskr
 golangci-lint run --build-tags=containers_image_openpgp
 ```
@@ -77,9 +80,11 @@ helm lint --strict charts/ratatoskr --values .github/fixtures/helm/valid-values.
 helm lint --strict charts/ratatoskr --values .github/fixtures/helm/explicit-source-values.yaml
 ```
 
-Render affected variants for template/schema changes.
+For chart changes, run the strict lint fixtures and mirror the affected render/API-validation cases from the Helm CI job. `ct lint` enforces chart version bumps.
 
 Bump `charts/ratatoskr/Chart.yaml` when the packaged chart changes, including templates, values/defaults, schema, chart metadata, or chart-shipped files. Do not bump it for application-only, repository-only, or documentation-only changes that do not alter the chart package.
+
+For `Containerfile` or container-build changes, verify an OCI image build before finishing.
 
 Do not claim a check passed unless it was actually run.
 
@@ -91,24 +96,21 @@ When changing release behavior, inspect `release.config.cjs`, `package.json`, an
 
 Use Angular-style Conventional Commits and PR titles: `type(scope): description` or `type: description`.
 
-Supported types include `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, and `test`. Note that project-specific semantic-release rules make `build` and `refactor` patch releases.
+Supported types include `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, and `test`. Project-specific semantic-release rules make `build` and `refactor` patch releases. When changing release rules, keep release triggering and release-note visibility aligned.
 
 Keep commits and PRs tightly scoped. Before finishing, inspect the diff, remove temporary artifacts, and report only verification actually performed.
 
 ## Security and threat model
 
-Assume registry/catalog content, upstream HTTP responses, configuration, and client input are untrusted. Treat credentials, registry tokens, TLS material, and generated auth files as secrets.
+Assume registry/catalog data, upstream HTTP responses, configuration, and client input are untrusted. Treat credentials, registry tokens, TLS material, and generated auth files as secrets.
 
-When changing code across a trust boundary:
+- HTTP clients may select only configured catalogs and source IDs; do not turn the service into an arbitrary image or HTTP proxy.
+- Preserve TLS verification, signature-policy, authentication, and refresh-token protections.
+- Do not leak credentials or sensitive headers through logs, errors, metrics, or responses.
+- Bound external input, response sizes, concurrency, retries, and refresh work.
+- Failed refreshes or invalid reloads must not replace known-good state.
+- Preserve least-privilege container and Kubernetes defaults.
 
-- validate and bound external input before parsing, storing, or returning it;
-- preserve TLS verification, signature-policy, and authentication defaults;
-- avoid leaking credentials or sensitive headers through logs, errors, metrics, or responses;
-- prevent untrusted values from becoming filesystem paths, command arguments, or arbitrary outbound requests without explicit validation;
-- bound concurrency, response sizes, retries, and refresh work to reduce denial-of-service risk;
-- keep the last known-good state when refresh or config validation fails rather than accepting partial or invalid state;
-- preserve least-privilege container and Kubernetes defaults.
-
-Changes to authentication, registry access, signature verification, network destinations, HTTP exposure, config ingestion, or filesystem handling require an explicit security review. Add negative tests for malformed or hostile input when practical.
+For changes to authentication, registry access, signature verification, external destinations, HTTP exposure, config ingestion, or filesystem handling, assess the threat-model impact and add negative tests where practical.
 
 Never commit credentials, tokens, keys, generated auth files, or other secrets. Do not turn development-only insecure settings into production defaults.
