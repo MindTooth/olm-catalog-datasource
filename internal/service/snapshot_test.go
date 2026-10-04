@@ -398,3 +398,47 @@ func TestOpenShiftRetentionIsBounded(t *testing.T) {
 		t.Fatal("oldest snapshot was not evicted")
 	}
 }
+
+func TestOpenShiftEvictionCannotRepublishOlderLookup(t *testing.T) {
+	svc := New(Config{OpenShiftGraphURL: "https://graph.example.test"})
+	var calls atomic.Int32
+	var fail atomic.Bool
+	started, finish := make(chan struct{}), make(chan struct{})
+	svc.httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		if fail.Load() {
+			return nil, io.ErrUnexpectedEOF
+		}
+		call := calls.Add(1)
+		if call == 1 {
+			close(started)
+			<-finish
+		}
+		body := openShiftLKGGraph
+		if call == 2 {
+			body = strings.ReplaceAll(body, "4.22.11", "4.22.12")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- getSnapshotResponse(svc, openShiftLKGRoute) }()
+	<-started
+	newer := getSnapshotResponse(svc, openShiftLKGRoute)
+	if newer.Code != http.StatusOK || !strings.Contains(newer.Body.String(), "4.22.12") {
+		t.Fatalf("newer lookup failed: %d %s", newer.Code, newer.Body.String())
+	}
+	// Distinct successful lookups evict the newer payload while the older
+	// same-key lookup is still running.
+	for i := range maxOpenShiftSnapshots {
+		route := strings.ReplaceAll(openShiftLKGRoute, "currentVersion=4.22.9", fmt.Sprintf("currentVersion=absent-%d", i))
+		if res := getSnapshotResponse(svc, route); res.Code != http.StatusOK {
+			t.Fatalf("lookup churn failed: %d %s", res.Code, res.Body.String())
+		}
+	}
+	close(finish)
+	requireUnavailable(t, <-done)
+	fail.Store(true)
+	requireUnavailable(t, getSnapshotResponse(svc, openShiftLKGRoute))
+	if len(svc.openShiftInFlight) != 0 {
+		t.Fatal("completed lookups retained ordering metadata")
+	}
+}

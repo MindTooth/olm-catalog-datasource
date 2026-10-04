@@ -14,7 +14,7 @@ GitHub Pages must first deploy the `gh-pages` branch from the repository root;
 this publishes the repository chart index.
 
     helm repo add mindtooth https://mindtooth.github.io/ratatoskr
-    helm upgrade --install ratatoskr mindtooth/ratatoskr --version 0.3.1 -f values-openshift.yaml
+    helm upgrade --install ratatoskr mindtooth/ratatoskr --version 0.3.2 -f values-openshift.yaml
 
 Or install the same chart from GitHub Container Registry:
 
@@ -23,7 +23,7 @@ If the GHCR package is private, authenticate with a GitHub token that has
 
     printf '%s' "$GHCR_TOKEN" | helm registry login ghcr.io --username YOUR_GITHUB_USERNAME --password-stdin
 
-    helm upgrade --install ratatoskr oci://ghcr.io/mindtooth/charts/ratatoskr --version 0.3.1 -f values-openshift.yaml
+    helm upgrade --install ratatoskr oci://ghcr.io/mindtooth/charts/ratatoskr --version 0.3.2 -f values-openshift.yaml
 
 For a checkout-based installation, use:
 
@@ -71,7 +71,7 @@ Instead of supplying an existing policy object, the chart can generate a restric
 
 Each version is converted to an exact `vX.Y` policy scope for the built-in operator index repositories selected by `config.catalogs`. `operatorVersions`, `existingConfigMap`, and `existingSecret` are mutually exclusive.
 
-The chart version and application version are independent. The default image tag is the chart `appVersion` (`1.0.0` for chart `0.3.1`); override it with `image.tag`, or preferably pin an immutable `image.digest`.
+The chart version and application version are independent. The default image tag is the chart `appVersion` (`1.0.0` for chart `0.3.2`); override it with `image.tag`, or preferably pin an immutable `image.digest`.
 
 ## Operations
 

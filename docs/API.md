@@ -169,7 +169,8 @@ curl --fail-with-body http://localhost:8080/healthz
 ### `GET /readyz`
 
 Use this for a Kubernetes readiness probe or before querying package data. It
-returns `200` after at least one source refresh succeeds, otherwise `503`.
+returns `200` while at least one catalog has a complete snapshot within
+`maxSnapshotAge`, otherwise `503`.
 
 ```fish
 curl --fail-with-body http://localhost:8080/readyz
@@ -210,8 +211,9 @@ Example shape:
 ### `GET /v1/catalogs/{source}/status`
 
 Returns the same status object for one source. If the latest refresh failed
-after a previous success, `available` remains true and `lastError` explains the
-failure; the service continues serving the last good snapshot.
+after a previous success, `lastError` explains the failure and the service
+continues serving the last good snapshot while it is within `maxSnapshotAge`.
+After that, `available` becomes false and `stale` becomes true.
 
 ```fish
 curl --fail-with-body \
@@ -358,7 +360,9 @@ Example response:
 A missing `currentVersion` or another invalid parameter returns `400`. A
 well-formed version that is absent from the graph returns an empty release list
 because the graph does not declare a valid path from that state. An upstream
-graph or release-stream discovery failure returns `503` without a release list.
+graph or release-stream discovery failure serves the previous complete result
+for the exact lookup within `maxSnapshotAge`; otherwise it returns `503`
+without a release list.
 
 Renovate configuration:
 

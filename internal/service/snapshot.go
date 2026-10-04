@@ -21,6 +21,12 @@ type openShiftSnapshot struct {
 	attempt     uint64
 }
 
+// Ordering survives payload eviction only while overlapping lookups need it.
+type openShiftLookup struct {
+	pending       int
+	latestSuccess uint64
+}
+
 func (s *Service) snapshotAcceptableLocked(generatedAt time.Time) bool {
 	maxAge := s.cfg.MaxSnapshotAge
 	if maxAge <= 0 {
@@ -53,6 +59,12 @@ func (s *Service) openShiftUpdates(ctx context.Context, client openshift.Client,
 	s.mu.Lock()
 	s.openShiftAttempt++
 	attempt, generation := s.openShiftAttempt, s.openShiftGeneration
+	lookup := s.openShiftInFlight[req]
+	if lookup == nil {
+		lookup = &openShiftLookup{}
+		s.openShiftInFlight[req] = lookup
+	}
+	lookup.pending++
 	s.mu.Unlock()
 
 	values, err := client.Updates(ctx, req)
@@ -61,6 +73,12 @@ func (s *Service) openShiftUpdates(ctx context.Context, client openshift.Client,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer func() {
+		lookup.pending--
+		if lookup.pending == 0 {
+			delete(s.openShiftInFlight, req)
+		}
+	}()
 	// A request using the previous configuration cannot publish or fall back
 	// into a different upstream's state, even if the URL changes back again.
 	if generation != s.openShiftGeneration || client.GraphURL != s.cfg.OpenShiftGraphURL {
@@ -76,7 +94,10 @@ func (s *Service) openShiftUpdates(ctx context.Context, client openshift.Client,
 	}
 	// Concurrent successful requests may finish out of order. Keep the result
 	// of the latest started successful lookup; failures never advance its age.
-	if found && previous.attempt > attempt {
+	if lookup.latestSuccess > attempt || (found && previous.attempt > attempt) {
+		if !found {
+			return nil, time.Time{}, errors.New("newer OpenShift lookup result was evicted")
+		}
 		if !s.snapshotAcceptableLocked(previous.generatedAt) {
 			return nil, time.Time{}, errors.New("OpenShift snapshot has expired")
 		}
@@ -93,6 +114,7 @@ func (s *Service) openShiftUpdates(ctx context.Context, client openshift.Client,
 		delete(s.openShiftSnapshots, oldest)
 	}
 	generatedAt := s.now().UTC()
+	lookup.latestSuccess = attempt
 	s.openShiftSnapshots[req] = openShiftSnapshot{releases: values, generatedAt: generatedAt, attempt: attempt}
 	return values, generatedAt, nil
 }

@@ -60,6 +60,7 @@ type Service struct {
 	now                 func() time.Time
 	readCatalog         func(context.Context, catalog.Source, catalog.Reader) (*catalog.Snapshot, error)
 	openShiftSnapshots  map[openshift.UpdateRequest]openShiftSnapshot
+	openShiftInFlight   map[openshift.UpdateRequest]*openShiftLookup
 	openShiftAttempt    uint64
 	openShiftGeneration uint64
 }
@@ -84,6 +85,7 @@ func New(cfg Config) *Service {
 			return reader.Read(ctx, source)
 		},
 		openShiftSnapshots: make(map[openshift.UpdateRequest]openShiftSnapshot),
+		openShiftInFlight:  make(map[openshift.UpdateRequest]*openShiftLookup),
 	}
 }
 
