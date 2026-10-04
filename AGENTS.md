@@ -91,6 +91,20 @@ Supported types include `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `
 
 Keep commits and PRs tightly scoped. Before finishing, inspect the diff, remove temporary artifacts, and report only verification actually performed.
 
-## Security
+## Security and threat model
+
+Assume registry/catalog content, upstream HTTP responses, configuration, and client input are untrusted. Treat credentials, registry tokens, TLS material, and generated auth files as secrets.
+
+When changing code across a trust boundary:
+
+- validate and bound external input before parsing, storing, or returning it;
+- preserve TLS verification, signature-policy, and authentication defaults;
+- avoid leaking credentials or sensitive headers through logs, errors, metrics, or responses;
+- prevent untrusted values from becoming filesystem paths, command arguments, or arbitrary outbound requests without explicit validation;
+- bound concurrency, response sizes, retries, and refresh work to reduce denial-of-service risk;
+- keep the last known-good state when refresh or config validation fails rather than accepting partial or invalid state;
+- preserve least-privilege container and Kubernetes defaults.
+
+Changes to authentication, registry access, signature verification, network destinations, HTTP exposure, config ingestion, or filesystem handling require an explicit security review. Add negative tests for malformed or hostile input when practical.
 
 Never commit credentials, tokens, keys, generated auth files, or other secrets. Do not turn development-only insecure settings into production defaults.
