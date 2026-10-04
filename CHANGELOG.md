@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1](https://github.com/MindTooth/ratatoskr/compare/v2.1.0...v2.1.1) (2026-10-04)
+
+### Fixed
+
+* **datasource:** fail safely when release data is unavailable ([#84](https://github.com/MindTooth/ratatoskr/issues/84)) ([de119d7](https://github.com/MindTooth/ratatoskr/commit/de119d7d15d524f3ad3667a212d29dedc085d50f))
+
 ## [2.1.0](https://github.com/MindTooth/ratatoskr/compare/v2.0.1...v2.1.0) (2026-10-04)
 
 ### Added
