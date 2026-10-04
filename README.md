@@ -123,6 +123,30 @@ it is not a catalog error.
 
 ## Renovate
 
+Every Renovate configuration using Ratatoskr must include a fail-safe host rule
+for the hostname in its datasource URLs:
+
+```json
+{
+  "hostRules": [
+    {
+      "matchHost": "ratatoskr.example",
+      "abortOnError": true,
+      "abortIgnoreStatusCodes": []
+    }
+  ]
+}
+```
+
+Replace `ratatoskr.example` with your service hostname and merge this rule into
+the configuration alongside `customDatasources`. Ratatoskr returns `503 Service
+Unavailable` when release data cannot be produced. Renovate's
+[`abortOnError` rule](https://docs.renovatebot.com/configuration-options/#hostrulesabortonerror)
+aborts the run on HTTP or transport failures so a transient outage cannot cause
+existing dependency PRs to be closed or rewritten from incomplete data. Keep
+5xx statuses out of `abortIgnoreStatusCodes`; the empty list above ignores none.
+This rule applies to both OpenShift releases and operator catalogs.
+
 OpenShift cluster releases require only a channel and the installed version:
 
 ```json

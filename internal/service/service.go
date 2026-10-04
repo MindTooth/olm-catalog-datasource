@@ -389,7 +389,7 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 		values = []openshift.Release{}
 	} else if err != nil {
 		slog.Error("resolve OpenShift releases", "channel", parts[2], "architecture", architecture, "error", err)
-		http.Error(w, "OpenShift update graph is unavailable", http.StatusBadGateway)
+		http.Error(w, "OpenShift release data is unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -1000,7 +1000,7 @@ func (s *Service) channelReleases(w http.ResponseWriter, r *http.Request, p *cat
 	// The first item represents the installed state. A datasource should expose
 	// only update candidates; Renovate already knows its current value.
 	out := make([]release, 0, max(len(values)-1, 0))
-	for _, value := range values[1:] {
+	for _, value := range values[min(1, len(values)):] {
 		out = append(out, release{Version: value.Channel, Digest: value.Bundle})
 	}
 	writeJSON(w, http.StatusOK, struct {

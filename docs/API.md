@@ -49,10 +49,39 @@ curl --fail-with-body http://localhost:8080/readyz
 - `package` means an Operator package name, for example
   `strimzi-kafka-operator`.
 - A `404` means the source, package, or selected channel is unknown.
-- A `503` means the configured source has not completed a successful refresh.
+- A `503` means authoritative release data is unavailable: a catalog has no
+  complete snapshot, or an OpenShift graph or release-stream lookup failed.
 - The update endpoints return `422` for malformed or ambiguous current state.
-- An empty Renovate release list is a valid answer: it means the catalog does
-  not declare a graph-valid path for the requested state.
+- An empty Renovate release list is a valid answer only after a successful
+  lookup: it means the data does not declare a graph-valid path for the
+  requested state. Fetch, discovery, and parse failures never produce a
+  successful empty or partial release list.
+
+## Datasource failure contract
+
+Configure Ratatoskr's hostname with Renovate `hostRules.abortOnError: true`
+and do not ignore 5xx responses. See the [required host rule](../README.md#renovate)
+for a complete example. HTTP status alone is insufficient if Renovate is
+allowed to continue after a custom host fails.
+
+| Path | Failure behavior |
+| --- | --- |
+| Catalog pull, labels, unpack, filesystem traversal, or metadata parsing | Refresh fails without publishing an empty or partial snapshot. Package and update endpoints return `503` when no complete snapshot exists. The existing complete in-memory snapshot, if any, remains in use. |
+| Missing catalog default channel, referenced bundle, or bundle version metadata | Refresh fails rather than silently omitting releases. |
+| OpenShift graph fetch, timeout, body read, or invalid payload | Update endpoint returns `503` without a release list. |
+| Release-stream discovery after a successful graph lookup | Update endpoint returns `503`; it does not fall back to an incomplete graph-only release set. |
+| Optional advisory-text enrichment | A failed advisory may omit `changelogContent`; the complete discovered release set and eligibility remain unchanged. |
+
+Graph and stream payloads must be complete JSON documents within their size
+limits and include their required arrays. Explicit empty arrays are valid;
+missing or null arrays are lookup failures. An installed version absent from a
+valid graph or catalog channel is a legitimate `200` with `{"releases":[]}`.
+
+Catalog/source status listings intentionally return `200` with availability and
+error fields for inspection. Refresh-control endpoints return `202` when work
+is queued, not when it succeeds. The manual `resolve` endpoint returns `200`
+with `valid: false` and a reason for invalid query state. These are inspection
+or control responses, not Renovate datasource release sets.
 
 ## Recommended v2 API
 
@@ -322,12 +351,19 @@ Example response:
 A missing `currentVersion` or another invalid parameter returns `400`. A
 well-formed version that is absent from the graph returns an empty release list
 because the graph does not declare a valid path from that state. An upstream
-graph failure returns `502`.
+graph or release-stream discovery failure returns `503` without a release list.
 
 Renovate configuration:
 
 ```json
 {
+  "hostRules": [
+    {
+      "matchHost": "ratatoskr",
+      "abortOnError": true,
+      "abortIgnoreStatusCodes": []
+    }
+  ],
   "customDatasources": {
     "openshift-releases": {
       "defaultRegistryUrlTemplate": "http://ratatoskr:8080/v1/openshift-releases/{{packageName}}/updates?currentVersion={{currentValue}}&arch=multi&lag=1",
@@ -460,6 +496,13 @@ uses `newValue` and `newDigest` so the channel and state marker move together.
 
 ```json
 {
+  "hostRules": [
+    {
+      "matchHost": "ratatoskr",
+      "abortOnError": true,
+      "abortIgnoreStatusCodes": []
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",

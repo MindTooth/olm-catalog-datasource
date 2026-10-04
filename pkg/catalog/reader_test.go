@@ -2,7 +2,10 @@ package catalog_test
 
 import (
 	"context"
+	"errors"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"testing/fstest"
@@ -63,8 +66,21 @@ func TestReadFSAndResolve(t *testing.T) {
 // partial snapshot.
 func TestReadFSErrors(t *testing.T) {
 	for name, configs := range map[string]fs.FS{
-		"malformed JSON":   fstest.MapFS{"catalog.json": {Data: []byte(`{`)}},
-		"invalid metadata": fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.package"}`)}},
+		"malformed JSON":           fstest.MapFS{"catalog.json": {Data: []byte(`{`)}},
+		"invalid metadata":         fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.package"}`)}},
+		"missing schema":           fstest.MapFS{"catalog.json": {Data: []byte(`{"name":"example"}`)}},
+		"missing version property": fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.bundle","package":"example","name":"example.v1"}`)}},
+		"partial parse": fstest.MapFS{"catalog.json": {Data: []byte(`
+{"schema":"olm.package","name":"example","defaultChannel":"stable"}
+{`)}},
+		"missing filesystem":      os.DirFS(filepath.Join(t.TempDir(), "missing")),
+		"missing default channel": fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.package","name":"example","defaultChannel":"stable"}`)}},
+		"missing bundle": fstest.MapFS{"catalog.json": {Data: []byte(`
+{"schema":"olm.package","name":"example","defaultChannel":"stable"}
+{"schema":"olm.channel","package":"example","name":"stable","entries":[{"name":"example.v1"}]}
+`)}},
+		"missing version":          fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.bundle","package":"example","name":"example.v1","properties":[{"type":"olm.package","value":{}}]}`)}},
+		"invalid version property": fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.bundle","package":"example","name":"example.v1","properties":[{"type":"olm.package","value":"invalid"}]}`)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			snapshot, err := (catalog.Reader{}).ReadFS(context.Background(), catalog.Source{}, configs)
@@ -72,5 +88,22 @@ func TestReadFSErrors(t *testing.T) {
 				t.Fatalf("ReadFS() = (%#v, %v), want nil snapshot and error", snapshot, err)
 			}
 		})
+	}
+}
+
+func TestReadFSAllowsEmptyCatalog(t *testing.T) {
+	configs := fstest.MapFS{"empty": {Mode: fs.ModeDir}}
+	snapshot, err := (catalog.Reader{}).ReadFS(context.Background(), catalog.Source{}, configs)
+	if err != nil || snapshot == nil || len(snapshot.Packages) != 0 {
+		t.Fatalf("ReadFS() = (%#v, %v), want a successful empty catalog", snapshot, err)
+	}
+}
+
+func TestReadFSRejectsCanceledLookup(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	snapshot, err := (catalog.Reader{}).ReadFS(ctx, catalog.Source{}, fstest.MapFS{"empty": {Mode: fs.ModeDir}})
+	if !errors.Is(err, context.Canceled) || snapshot != nil {
+		t.Fatalf("ReadFS() = (%#v, %v), want nil snapshot and context.Canceled", snapshot, err)
 	}
 }
