@@ -52,6 +52,22 @@ entries:
   ratatoskr:
   - apiVersion: v2
     appVersion: 1.0.0
+    created: "2026-10-04T23:40:29.495683209Z"
+    description: OpenShift-ready deployment for the OLM catalog datasource
+    digest: 567f88b61a90943bf481877bfeefdc6c6dc3c68cc7dfe5e8ead01aef9b0dd67c
+    home: https://github.com/MindTooth/ratatoskr
+    kubeVersion: '>=1.28.0-0'
+    maintainers:
+    - name: MindTooth
+    name: ratatoskr
+    sources:
+    - https://github.com/MindTooth/ratatoskr
+    type: application
+    urls:
+    - https://github.com/MindTooth/ratatoskr/releases/download/chart-ratatoskr-0.3.2/ratatoskr-0.3.2.tgz
+    version: 0.3.2
+  - apiVersion: v2
+    appVersion: 1.0.0
     created: "2026-09-30T00:19:35.084121Z"
     description: OpenShift-ready deployment for the OLM catalog datasource
     digest: e87422fc02dd79cf295c2d8b653f42141d948a3183fabde7f12e6dc270ab592b
@@ -66,4 +82,4 @@ entries:
     urls:
     - https://github.com/MindTooth/ratatoskr/releases/download/chart-ratatoskr-0.3.1/ratatoskr-0.3.1.tgz
     version: 0.3.1
-generated: "2026-09-30T00:19:35.084128434Z"
+generated: "2026-10-04T23:40:29.49569783Z"
