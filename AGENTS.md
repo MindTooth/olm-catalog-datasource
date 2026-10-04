@@ -39,6 +39,10 @@ See `docs/OPENSHIFT_RELEASE_ADVISORIES.md` before changing this behavior.
 
 - Keep configuration strict; unknown fields are errors.
 - Preserve generated catalog sources versus explicit source overrides.
+- Validate configuration using effective values after defaults and fallbacks.
+- Validate timing relationships between refresh intervals, timeouts, TTLs, and freshness limits.
+- Apply identical validation at startup and reload; reject invalid configuration before activation.
+- Test defaults, invalid combinations, boundary values, and derived duration overflow.
 - Invalid reloads must not replace the last valid configuration.
 - Keep refresh work bounded.
 - Do not weaken registry authentication, TLS, signature-policy, or refresh-token behavior.
