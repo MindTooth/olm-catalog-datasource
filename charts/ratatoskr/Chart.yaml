@@ -2,7 +2,7 @@ apiVersion: v2
 name: ratatoskr
 description: OpenShift-ready deployment for the OLM catalog datasource
 type: application
-version: 0.3.1
+version: 0.3.2
 appVersion: "1.0.0"
 kubeVersion: ">=1.28.0-0"
 home: https://github.com/MindTooth/ratatoskr

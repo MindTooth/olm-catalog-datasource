@@ -40,7 +40,7 @@ before making a package request:
 curl --fail-with-body http://localhost:8080/readyz
 ```
 
-`200 OK` means at least one catalog has completed a successful refresh.
+`200 OK` means at least one catalog has a complete snapshot within `maxSnapshotAge`.
 
 ## Conventions
 
@@ -49,8 +49,8 @@ curl --fail-with-body http://localhost:8080/readyz
 - `package` means an Operator package name, for example
   `strimzi-kafka-operator`.
 - A `404` means the source, package, or selected channel is unknown.
-- A `503` means authoritative release data is unavailable: a catalog has no
-  complete snapshot, or an OpenShift graph or release-stream lookup failed.
+- A `503` means no acceptable complete snapshot can be served: the dataset is
+  missing or expired, and any attempted upstream lookup failed.
 - The update endpoints return `422` for malformed or ambiguous current state.
 - An empty Renovate release list is a valid answer only after a successful
   lookup: it means the data does not declare a graph-valid path for the
@@ -66,10 +66,10 @@ allowed to continue after a custom host fails.
 
 | Path | Failure behavior |
 | --- | --- |
-| Catalog pull, labels, unpack, filesystem traversal, or metadata parsing | Refresh fails without publishing an empty or partial snapshot. Package and update endpoints return `503` when no complete snapshot exists. The existing complete in-memory snapshot, if any, remains in use. |
+| Catalog pull, labels, unpack, filesystem traversal, or metadata parsing | Refresh fails without publishing an empty or partial snapshot. The previous complete snapshot remains available through `maxSnapshotAge`; missing or expired snapshots return `503`. |
 | Missing catalog default channel, referenced bundle, or bundle version metadata | Refresh fails rather than silently omitting releases. |
-| OpenShift graph fetch, timeout, body read, or invalid payload | Update endpoint returns `503` without a release list. |
-| Release-stream discovery after a successful graph lookup | Update endpoint returns `503`; it does not fall back to an incomplete graph-only release set. |
+| OpenShift graph fetch, timeout, body read, or invalid payload | Serve the previous complete result for the exact lookup through `maxSnapshotAge`, otherwise return `503` without a release list. |
+| Release-stream discovery after a successful graph lookup | The same freshness-bound fallback applies; a partial graph-only result never replaces the complete result. |
 | Optional advisory-text enrichment | A failed advisory may omit `changelogContent`; the complete discovered release set and eligibility remain unchanged. |
 
 Graph and stream payloads must be complete JSON documents within their size
@@ -82,6 +82,13 @@ error fields for inspection. Refresh-control endpoints return `202` when work
 is queued, not when it succeeds. The manual `resolve` endpoint returns `200`
 with `valid: false` and a reason for invalid query state. These are inspection
 or control responses, not Renovate datasource release sets.
+
+Successful data responses include `X-Ratatoskr-Generated-At` (UTC timestamp)
+and `X-Ratatoskr-Snapshot-Age-Seconds`. Catalog status includes `lastSuccess`,
+`snapshotAgeSeconds`, `stale`, and `available`; expiration updates availability
+even without a new refresh attempt. Retention is in memory and starts empty
+after a restart. See the [freshness policy](CONFIGURATION.md#settings) for defaults
+and the bounded OpenShift retention limit.
 
 ## Recommended v2 API
 
@@ -162,7 +169,8 @@ curl --fail-with-body http://localhost:8080/healthz
 ### `GET /readyz`
 
 Use this for a Kubernetes readiness probe or before querying package data. It
-returns `200` after at least one source refresh succeeds, otherwise `503`.
+returns `200` while at least one catalog has a complete snapshot within
+`maxSnapshotAge`, otherwise `503`.
 
 ```fish
 curl --fail-with-body http://localhost:8080/readyz
@@ -203,8 +211,9 @@ Example shape:
 ### `GET /v1/catalogs/{source}/status`
 
 Returns the same status object for one source. If the latest refresh failed
-after a previous success, `available` remains true and `lastError` explains the
-failure; the service continues serving the last good snapshot.
+after a previous success, `lastError` explains the failure and the service
+continues serving the last good snapshot while it is within `maxSnapshotAge`.
+After that, `available` becomes false and `stale` becomes true.
 
 ```fish
 curl --fail-with-body \
@@ -351,7 +360,9 @@ Example response:
 A missing `currentVersion` or another invalid parameter returns `400`. A
 well-formed version that is absent from the graph returns an empty release list
 because the graph does not declare a valid path from that state. An upstream
-graph or release-stream discovery failure returns `503` without a release list.
+graph or release-stream discovery failure serves the previous complete result
+for the exact lookup within `maxSnapshotAge`; otherwise it returns `503`
+without a release list.
 
 Renovate configuration:
 

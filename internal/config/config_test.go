@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MindTooth/ratatoskr/internal/service"
 	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
@@ -22,6 +23,64 @@ func TestExampleConfig(t *testing.T) {
 	}
 	if _, err := Parse(data); err != nil {
 		t.Fatalf("config.example.yaml: %v", err)
+	}
+}
+
+func TestMaxSnapshotAge(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		want    time.Duration
+		invalid bool
+	}{
+		{want: service.DefaultMaxSnapshotAge},
+		{value: "12h", want: 12 * time.Hour},
+		{value: "0s", invalid: true},
+		{value: "-1h", invalid: true},
+		{value: "tomorrow", invalid: true},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			data := "channels: [v4.22]\n"
+			if tc.value != "" {
+				data += "maxSnapshotAge: " + tc.value + "\n"
+			}
+			cfg, err := Parse([]byte(data))
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "maxSnapshotAge") {
+					t.Fatalf("invalid freshness policy accepted: %v", err)
+				}
+			} else if err != nil || cfg.Service.MaxSnapshotAge != tc.want {
+				t.Fatalf("policy = %s, error = %v; want %s", cfg.Service.MaxSnapshotAge, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestMaxSnapshotAgeExceedsRefreshWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name, settings string
+		invalid        bool
+	}{
+		{name: "below default window", settings: "maxSnapshotAge: 6h", invalid: true},
+		{name: "equal default window", settings: "maxSnapshotAge: 6h30m", invalid: true},
+		{name: "above default window", settings: "maxSnapshotAge: 6h30m1ns"},
+		{name: "equal custom window", settings: "refreshInterval: 1h\nrefreshTimeout: 1h\nmaxSnapshotAge: 2h", invalid: true},
+		{name: "above custom window", settings: "refreshInterval: 1h\nrefreshTimeout: 1h\nmaxSnapshotAge: 2h1ns"},
+		{name: "timeout exceeds age", settings: "refreshInterval: 1h\nrefreshTimeout: 3h\nmaxSnapshotAge: 2h", invalid: true},
+		{name: "default age below custom window", settings: "refreshInterval: 24h", invalid: true},
+		{name: "zero interval uses default", settings: "refreshInterval: 0s\nmaxSnapshotAge: 6h30m", invalid: true},
+		{name: "negative interval uses default", settings: "refreshInterval: -1h\nmaxSnapshotAge: 6h30m", invalid: true},
+		{name: "overflowing refresh window", settings: "refreshInterval: 2562047h\nrefreshTimeout: 2562047h", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte("channels: [v4.22]\n" + tc.settings))
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "maxSnapshotAge must exceed refreshInterval + refreshTimeout") {
+					t.Fatalf("invalid refresh window accepted: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("valid refresh window rejected: %v", err)
+			}
+		})
 	}
 }
 

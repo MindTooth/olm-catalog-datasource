@@ -34,6 +34,7 @@ type fileConfig struct {
 	Debug             bool             `yaml:"debug"`
 	RefreshInterval   string           `yaml:"refreshInterval"`
 	RefreshTimeout    string           `yaml:"refreshTimeout"`
+	MaxSnapshotAge    string           `yaml:"maxSnapshotAge"`
 	SignaturePolicy   string           `yaml:"signaturePolicy"`
 	ParseConcurrency  int              `yaml:"parseConcurrency"`
 	RefreshTokenFile  string           `yaml:"refreshTokenFile"`
@@ -107,6 +108,18 @@ func resolve(raw fileConfig) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	maxSnapshotAge, err := parsePositiveDuration("maxSnapshotAge", raw.MaxSnapshotAge, service.DefaultMaxSnapshotAge)
+	if err != nil {
+		return Config{}, err
+	}
+	effectiveInterval := interval
+	if effectiveInterval <= 0 {
+		effectiveInterval = DefaultRefreshInterval
+	}
+	// Subtract positive durations instead of adding a potentially overflowing sum.
+	if maxSnapshotAge-timeout <= effectiveInterval {
+		return Config{}, fmt.Errorf("maxSnapshotAge must exceed refreshInterval + refreshTimeout (%s + %s)", effectiveInterval, timeout)
+	}
 	openshiftTimeout, err := parseDuration("openshiftTimeout", raw.OpenShiftTimeout, DefaultOpenShiftTimeout)
 	if err != nil {
 		return Config{}, err
@@ -130,6 +143,7 @@ func resolve(raw fileConfig) (Config, error) {
 			Sources:           sources,
 			RefreshInterval:   interval,
 			RefreshTimeout:    timeout,
+			MaxSnapshotAge:    maxSnapshotAge,
 			SignaturePolicy:   raw.SignaturePolicy,
 			ParseConcurrency:  parseConcurrency,
 			RefreshTokenFile:  raw.RefreshTokenFile,

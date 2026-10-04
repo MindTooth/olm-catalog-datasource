@@ -14,7 +14,7 @@ GitHub Pages must first deploy the `gh-pages` branch from the repository root;
 this publishes the repository chart index.
 
     helm repo add mindtooth https://mindtooth.github.io/ratatoskr
-    helm upgrade --install ratatoskr mindtooth/ratatoskr --version 0.3.1 -f values-openshift.yaml
+    helm upgrade --install ratatoskr mindtooth/ratatoskr --version 0.3.2 -f values-openshift.yaml
 
 Or install the same chart from GitHub Container Registry:
 
@@ -23,7 +23,7 @@ If the GHCR package is private, authenticate with a GitHub token that has
 
     printf '%s' "$GHCR_TOKEN" | helm registry login ghcr.io --username YOUR_GITHUB_USERNAME --password-stdin
 
-    helm upgrade --install ratatoskr oci://ghcr.io/mindtooth/charts/ratatoskr --version 0.3.1 -f values-openshift.yaml
+    helm upgrade --install ratatoskr oci://ghcr.io/mindtooth/charts/ratatoskr --version 0.3.2 -f values-openshift.yaml
 
 For a checkout-based installation, use:
 
@@ -42,6 +42,12 @@ The common catalog configuration is:
 This creates the standard Red Hat, certified, and community sources. Set
 `config.catalogs` to select a subset. `config.platform` defaults to
 `linux/amd64`; `config.sources` supports exact replacements and custom sources.
+
+`config.maxSnapshotAge` defaults to `24h` and must be positive. Failed datasource
+refreshes retain complete in-memory results through this age; missing or expired
+data returns `503`. Retention starts empty after a process restart. See the
+[freshness policy](../../docs/CONFIGURATION.md#settings) for response metadata
+and OpenShift lookup retention limits.
 See the project [configuration guide](../../docs/CONFIGURATION.md) for the
 normalization and precedence rules.
 
@@ -65,12 +71,12 @@ Instead of supplying an existing policy object, the chart can generate a restric
 
 Each version is converted to an exact `vX.Y` policy scope for the built-in operator index repositories selected by `config.catalogs`. `operatorVersions`, `existingConfigMap`, and `existingSecret` are mutually exclusive.
 
-The chart version and application version are independent. The default image tag is the chart `appVersion` (`1.0.0` for chart `0.3.1`); override it with `image.tag`, or preferably pin an immutable `image.digest`.
+The chart version and application version are independent. The default image tag is the chart `appVersion` (`1.0.0` for chart `0.3.2`); override it with `image.tag`, or preferably pin an immutable `image.digest`.
 
 ## Operations
 
 - The Service remains internal by default. Set `route.enabled=true` only when external access is required.
-- `/healthz` is used for startup and liveness; `/readyz` gates Service endpoints until a catalog refresh succeeds.
+- `/healthz` is used for startup and liveness; `/readyz` requires at least one complete catalog snapshot within `config.maxSnapshotAge`.
 - `emptyDir` cache is the default. Enable persistence only when retaining registry layers across replacements is worth the storage cost.
 - NetworkPolicy intentionally controls ingress only. Standard Kubernetes policy cannot safely represent a registry hostname allow-list; enforce egress in the cluster network layer.
 

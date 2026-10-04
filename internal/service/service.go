@@ -26,6 +26,7 @@ type Config struct {
 	Sources           []catalog.Source `yaml:"sources"`
 	RefreshInterval   time.Duration    `yaml:"refreshInterval"`
 	RefreshTimeout    time.Duration    `yaml:"refreshTimeout"`
+	MaxSnapshotAge    time.Duration    `yaml:"maxSnapshotAge"`
 	SignaturePolicy   string           `yaml:"signaturePolicy"`
 	ParseConcurrency  int              `yaml:"parseConcurrency"`
 	RefreshTokenFile  string           `yaml:"refreshTokenFile"`
@@ -34,27 +35,38 @@ type Config struct {
 }
 
 type SourceStatus struct {
-	Source       catalog.Source `json:"source"`
-	Available    bool           `json:"available"`
-	Refreshing   bool           `json:"refreshing"`
-	LastAttempt  time.Time      `json:"lastAttempt,omitempty"`
-	LastSuccess  time.Time      `json:"lastSuccess,omitempty"`
-	LastError    string         `json:"lastError,omitempty"`
-	PackageCount int            `json:"packageCount"`
+	Source             catalog.Source `json:"source"`
+	Available          bool           `json:"available"`
+	Refreshing         bool           `json:"refreshing"`
+	LastAttempt        time.Time      `json:"lastAttempt,omitempty"`
+	LastSuccess        time.Time      `json:"lastSuccess,omitempty"`
+	LastError          string         `json:"lastError,omitempty"`
+	PackageCount       int            `json:"packageCount"`
+	Stale              bool           `json:"stale"`
+	SnapshotAgeSeconds float64        `json:"snapshotAgeSeconds"`
 }
 
 type Service struct {
-	cfg           Config
-	mu            sync.RWMutex
-	snapshots     map[string]*catalog.Snapshot
-	statuses      map[string]SourceStatus
-	queued        map[string]bool
-	running       map[string]bool
-	refreshSem    chan struct{}
-	httpClient    *http.Client
-	runContext    context.Context
-	configChanged chan struct{}
+	cfg                 Config
+	mu                  sync.RWMutex
+	snapshots           map[string]*catalog.Snapshot
+	statuses            map[string]SourceStatus
+	queued              map[string]bool
+	running             map[string]bool
+	refreshSem          chan struct{}
+	httpClient          *http.Client
+	runContext          context.Context
+	configChanged       chan struct{}
+	now                 func() time.Time
+	readCatalog         func(context.Context, catalog.Source, catalog.Reader) (*catalog.Snapshot, error)
+	openShiftSnapshots  map[openshift.UpdateRequest]openShiftSnapshot
+	openShiftInFlight   map[openshift.UpdateRequest]*openShiftLookup
+	openShiftAttempt    uint64
+	openShiftGeneration uint64
 }
+
+// DefaultMaxSnapshotAge bounds how long an authoritative snapshot may be served.
+const DefaultMaxSnapshotAge = 24 * time.Hour
 
 var catalogVersionPattern = regexp.MustCompile(`^v?([1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
@@ -68,24 +80,46 @@ func New(cfg Config) *Service {
 		refreshSem:    make(chan struct{}, 1),
 		httpClient:    http.DefaultClient,
 		configChanged: make(chan struct{}, 1),
+		now:           time.Now,
+		readCatalog: func(ctx context.Context, source catalog.Source, reader catalog.Reader) (*catalog.Snapshot, error) {
+			return reader.Read(ctx, source)
+		},
+		openShiftSnapshots: make(map[openshift.UpdateRequest]openShiftSnapshot),
+		openShiftInFlight:  make(map[openshift.UpdateRequest]*openShiftLookup),
 	}
 }
 
 func (s *Service) Refresh(ctx context.Context, source catalog.Source) error {
+	select {
+	case s.refreshSem <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	defer func() { <-s.refreshSem }()
+	return s.refresh(ctx, source)
+}
+
+// refresh builds a private snapshot and publishes it only after a complete read.
+// Callers hold refreshSem so an older catalog refresh cannot replace a newer one.
+func (s *Service) refresh(ctx context.Context, source catalog.Source) error {
 	slog.Debug("refresh catalog", "source", source.ID, "image", source.Image)
 	s.markAttempt(source)
 	s.mu.RLock()
 	r := catalog.Reader{SignaturePolicy: s.cfg.SignaturePolicy, ParseConcurrency: s.cfg.ParseConcurrency}
 	s.mu.RUnlock()
-	snap, err := r.Read(ctx, source)
+	snap, err := s.readCatalog(ctx, source, r)
+	if err == nil {
+		err = ctx.Err()
+	}
 	if err != nil {
 		s.markFailure(source, err)
 		return err
 	}
 	s.mu.Lock()
 	if s.currentSourceLocked(source) {
+		snap.GeneratedAt = s.now().UTC()
 		s.snapshots[source.ID] = snap
-		s.statuses[source.ID] = SourceStatus{Source: source, Available: true, Refreshing: s.running[source.ID] || s.queued[source.ID], LastAttempt: time.Now().UTC(), LastSuccess: snap.GeneratedAt, PackageCount: len(snap.Packages)}
+		s.statuses[source.ID] = SourceStatus{Source: source, Available: true, Refreshing: s.running[source.ID] || s.queued[source.ID], LastAttempt: s.statuses[source.ID].LastAttempt, LastSuccess: snap.GeneratedAt, PackageCount: len(snap.Packages)}
 	}
 	s.mu.Unlock()
 	slog.Debug("catalog refreshed", "source", source.ID, "packages", len(snap.Packages), "generatedAt", snap.GeneratedAt)
@@ -99,7 +133,7 @@ func (s *Service) markAttempt(source catalog.Source) {
 		return
 	}
 	status := s.statuses[source.ID]
-	status.Source, status.LastAttempt, status.Refreshing = source, time.Now().UTC(), s.running[source.ID] || s.queued[source.ID]
+	status.Source, status.LastAttempt, status.Refreshing = source, s.now().UTC(), s.running[source.ID] || s.queued[source.ID]
 	s.statuses[source.ID] = status
 	s.mu.Unlock()
 }
@@ -159,6 +193,10 @@ func (s *Service) Reload(cfg Config) {
 	changed := sourceChanges(previous, cfg)
 	refreshAll := previous.SignaturePolicy != cfg.SignaturePolicy || previous.ParseConcurrency != cfg.ParseConcurrency
 	s.cfg = cfg
+	if previous.OpenShiftGraphURL != cfg.OpenShiftGraphURL {
+		clear(s.openShiftSnapshots)
+		s.openShiftGeneration++
+	}
 	for id, snap := range s.snapshots {
 		if !s.currentSourceLocked(snap.Source) {
 			delete(s.snapshots, id)
@@ -288,7 +326,7 @@ func (s *Service) refreshQueued(parent context.Context, id string) {
 	if timeout > 0 {
 		ctx, cancel = context.WithTimeout(parent, timeout)
 	}
-	if err := s.Refresh(ctx, source); err != nil {
+	if err := s.refresh(ctx, source); err != nil {
 		slog.Error("refresh catalog", "source", source.ID, "error", err)
 	}
 	cancel()
@@ -379,19 +417,18 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	client := openshift.Client{GraphURL: graphURL, HTTPClient: httpClient}
-	values, err := client.Updates(ctx, openshift.UpdateRequest{
+	values, generatedAt, err := s.openShiftUpdates(ctx, client, openshift.UpdateRequest{
 		Channel:        parts[2],
 		Architecture:   architecture,
 		CurrentVersion: currentVersion,
 		Lag:            lag,
 	})
-	if errors.Is(err, openshift.ErrCurrentVersionNotFound) {
-		values = []openshift.Release{}
-	} else if err != nil {
+	if err != nil {
 		slog.Error("resolve OpenShift releases", "channel", parts[2], "architecture", architecture, "error", err)
 		http.Error(w, "OpenShift release data is unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	setSnapshotHeaders(w, generatedAt, s.now())
 
 	changelogURL := ""
 	if len(values) > 1 {
@@ -412,10 +449,16 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) ready(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
-	ready := len(s.snapshots) > 0
+	ready := false
+	for _, snap := range s.snapshots {
+		if s.snapshotAcceptableLocked(snap.GeneratedAt) {
+			ready = true
+			break
+		}
+	}
 	s.mu.RUnlock()
 	if !ready {
-		http.Error(w, "no catalog has completed refresh", http.StatusServiceUnavailable)
+		http.Error(w, "no catalog has an acceptable snapshot", http.StatusServiceUnavailable)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -742,22 +785,27 @@ func (s *Service) hasSource(id string) bool {
 func (s *Service) snapshot(w http.ResponseWriter, sourceID string) *catalog.Snapshot {
 	s.mu.RLock()
 	snap := s.snapshots[sourceID]
+	if snap != nil && !s.snapshotAcceptableLocked(snap.GeneratedAt) {
+		snap = nil
+	}
 	s.mu.RUnlock()
 	if snap == nil {
-		http.Error(w, "catalog is unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "catalog has no acceptable snapshot", http.StatusServiceUnavailable)
+	} else {
+		setSnapshotHeaders(w, snap.GeneratedAt, s.now())
 	}
 	return snap
 }
 
 func (s *Service) listCatalogs(w http.ResponseWriter) {
-	statuses := make([]SourceStatus, 0, len(s.cfg.Sources))
 	s.mu.RLock()
+	statuses := make([]SourceStatus, 0, len(s.cfg.Sources))
 	for _, source := range s.cfg.Sources {
 		status, ok := s.statuses[source.ID]
 		if !ok {
 			status.Source = source
 		}
-		statuses = append(statuses, status)
+		statuses = append(statuses, s.freshStatusLocked(status))
 	}
 	s.mu.RUnlock()
 	writeJSON(w, http.StatusOK, struct {
@@ -771,8 +819,8 @@ func (s *Service) listCatalogsV2(w http.ResponseWriter) {
 		Version string `json:"version"`
 		SourceStatus
 	}
-	items := make([]item, 0, len(s.cfg.Sources))
 	s.mu.RLock()
+	items := make([]item, 0, len(s.cfg.Sources))
 	for _, source := range s.cfg.Sources {
 		name, version, ok := catalogReference(source.ID)
 		if !ok {
@@ -782,7 +830,7 @@ func (s *Service) listCatalogsV2(w http.ResponseWriter) {
 		if !ok {
 			status.Source = source
 		}
-		items = append(items, item{Catalog: name, Version: version, SourceStatus: status})
+		items = append(items, item{Catalog: name, Version: version, SourceStatus: s.freshStatusLocked(status)})
 	}
 	s.mu.RUnlock()
 	writeJSON(w, http.StatusOK, struct {
@@ -791,14 +839,14 @@ func (s *Service) listCatalogsV2(w http.ResponseWriter) {
 }
 
 func (s *Service) listSourcesV2(w http.ResponseWriter) {
-	statuses := make([]SourceStatus, 0, len(s.cfg.Sources))
 	s.mu.RLock()
+	statuses := make([]SourceStatus, 0, len(s.cfg.Sources))
 	for _, source := range s.cfg.Sources {
 		status, ok := s.statuses[source.ID]
 		if !ok {
 			status.Source = source
 		}
-		statuses = append(statuses, status)
+		statuses = append(statuses, s.freshStatusLocked(status))
 	}
 	s.mu.RUnlock()
 	writeJSON(w, http.StatusOK, struct {
@@ -809,14 +857,14 @@ func (s *Service) listSourcesV2(w http.ResponseWriter) {
 func (s *Service) catalogStatus(w http.ResponseWriter, sourceID string) {
 	s.mu.RLock()
 	status, ok := s.statuses[sourceID]
+	if !ok {
+		if source, found := s.sourceLocked(sourceID); found {
+			status, ok = SourceStatus{Source: source}, true
+		}
+	}
+	status = s.freshStatusLocked(status)
 	s.mu.RUnlock()
 	if !ok {
-		for _, source := range s.cfg.Sources {
-			if source.ID == sourceID {
-				writeJSON(w, http.StatusOK, SourceStatus{Source: source})
-				return
-			}
-		}
 		http.Error(w, "catalog is not configured", http.StatusNotFound)
 		return
 	}
