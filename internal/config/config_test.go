@@ -55,6 +55,35 @@ func TestMaxSnapshotAge(t *testing.T) {
 	}
 }
 
+func TestMaxSnapshotAgeExceedsRefreshWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name, settings string
+		invalid        bool
+	}{
+		{name: "below default window", settings: "maxSnapshotAge: 6h", invalid: true},
+		{name: "equal default window", settings: "maxSnapshotAge: 6h30m", invalid: true},
+		{name: "above default window", settings: "maxSnapshotAge: 6h30m1ns"},
+		{name: "equal custom window", settings: "refreshInterval: 1h\nrefreshTimeout: 1h\nmaxSnapshotAge: 2h", invalid: true},
+		{name: "above custom window", settings: "refreshInterval: 1h\nrefreshTimeout: 1h\nmaxSnapshotAge: 2h1ns"},
+		{name: "timeout exceeds age", settings: "refreshInterval: 1h\nrefreshTimeout: 3h\nmaxSnapshotAge: 2h", invalid: true},
+		{name: "default age below custom window", settings: "refreshInterval: 24h", invalid: true},
+		{name: "zero interval uses default", settings: "refreshInterval: 0s\nmaxSnapshotAge: 6h30m", invalid: true},
+		{name: "negative interval uses default", settings: "refreshInterval: -1h\nmaxSnapshotAge: 6h30m", invalid: true},
+		{name: "overflowing refresh window", settings: "refreshInterval: 2562047h\nrefreshTimeout: 2562047h", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte("channels: [v4.22]\n" + tc.settings))
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "maxSnapshotAge must exceed refreshInterval + refreshTimeout") {
+					t.Fatalf("invalid refresh window accepted: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("valid refresh window rejected: %v", err)
+			}
+		})
+	}
+}
+
 func TestParseExpandsChannelWithDefaults(t *testing.T) {
 	cfg, err := Parse([]byte(`channels: ["4.22"]`))
 	if err != nil {

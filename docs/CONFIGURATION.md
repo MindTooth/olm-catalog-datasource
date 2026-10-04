@@ -96,7 +96,7 @@ ID adds a custom source after the generated sources.
 | `debug` | `false` | Include query strings, user agents, and refresh progress in logs. |
 | `refreshInterval` | `6h` | Scheduled catalog refresh interval. |
 | `refreshTimeout` | `30m` | Timeout for one catalog refresh. |
-| `maxSnapshotAge` | `24h` | Maximum acceptable age of a complete datasource snapshot. Must be positive. |
+| `maxSnapshotAge` | `24h` | Maximum acceptable age of a complete datasource snapshot. Must be positive and greater than `refreshInterval + refreshTimeout`. |
 | `parseConcurrency` | `2` | Concurrent FBC metadata parsers. |
 | `signaturePolicy` | environment default | Explicit containers/image policy path. |
 | `refreshTokenFile` | none | Bearer token file that enables refresh-control endpoints. |
@@ -107,6 +107,13 @@ At least one channel or explicit source is required. Configuration decoding is
 strict: unknown fields, malformed values, duplicate IDs, and multiple YAML
 documents are rejected. During live reload, an invalid replacement leaves the
 last valid configuration active.
+
+`maxSnapshotAge` must strictly exceed the scheduled refresh interval plus one
+refresh timeout, leaving room for a refresh to complete before retained data
+expires. With the defaults, it must exceed `6h30m`; equality is rejected.
+Nonpositive `refreshInterval` values use the service's `6h` fallback for this
+check. Startup and live reload apply the same validation; an invalid reload
+preserves the active configuration.
 
 Complete datasource results are retained in memory. Catalog refreshes replace
 one whole source snapshot at a time; a failed pull or parse preserves the previous

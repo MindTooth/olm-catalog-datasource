@@ -112,6 +112,14 @@ func resolve(raw fileConfig) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	effectiveInterval := interval
+	if effectiveInterval <= 0 {
+		effectiveInterval = DefaultRefreshInterval
+	}
+	// Subtract positive durations instead of adding a potentially overflowing sum.
+	if maxSnapshotAge-timeout <= effectiveInterval {
+		return Config{}, fmt.Errorf("maxSnapshotAge must exceed refreshInterval + refreshTimeout (%s + %s)", effectiveInterval, timeout)
+	}
 	openshiftTimeout, err := parseDuration("openshiftTimeout", raw.OpenShiftTimeout, DefaultOpenShiftTimeout)
 	if err != nil {
 		return Config{}, err
