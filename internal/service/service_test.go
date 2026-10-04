@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
@@ -44,7 +45,7 @@ func TestHealthAndReadinessEndpoints(t *testing.T) {
 		}
 	}
 
-	svc.snapshots["catalog"] = &catalog.Snapshot{}
+	svc.snapshots["catalog"] = &catalog.Snapshot{GeneratedAt: time.Now().UTC()}
 	res := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	if res.Code != http.StatusOK {
@@ -138,7 +139,7 @@ func TestOpenShiftReleasesEndpointValidation(t *testing.T) {
 
 func TestChannelInspectionEndpoint(t *testing.T) {
 	svc := New(Config{})
-	svc.snapshots["community-v4.20"] = &catalog.Snapshot{Packages: map[string]*catalog.Package{
+	svc.snapshots["community-v4.20"] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Packages: map[string]*catalog.Package{
 		"strimzi-kafka-operator": {Name: "strimzi-kafka-operator", DefaultChannel: "stable", Bundles: map[string]*catalog.Bundle{
 			"strimzi.v1": {Name: "strimzi.v1", Version: "1.0.0"},
 		}, Channels: map[string]*catalog.Channel{
@@ -296,7 +297,7 @@ func TestReloadDiscardsChangedSourceSnapshot(t *testing.T) {
 	old := catalog.Source{ID: "catalog", Image: "old"}
 	updated := catalog.Source{ID: "catalog", Image: ""}
 	svc := New(Config{Sources: []catalog.Source{old}})
-	svc.snapshots[old.ID] = &catalog.Snapshot{Source: old}
+	svc.snapshots[old.ID] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Source: old}
 	svc.statuses[old.ID] = SourceStatus{Source: old, Available: true}
 
 	svc.Reload(Config{Sources: []catalog.Source{updated}})
@@ -310,7 +311,7 @@ func TestReloadDiscardsChangedSourceSnapshot(t *testing.T) {
 
 func TestChannelReleasesEndpointReturnsTargetAndStateToken(t *testing.T) {
 	svc := New(Config{})
-	svc.snapshots["community-v4.20"] = &catalog.Snapshot{Packages: map[string]*catalog.Package{
+	svc.snapshots["community-v4.20"] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Packages: map[string]*catalog.Package{
 		"gitops": {Name: "gitops", Bundles: map[string]*catalog.Bundle{
 			"v120": {Name: "v120", Version: "1.20.4"}, "v121": {Name: "v121", Version: "1.21.2"},
 		}, Channels: map[string]*catalog.Channel{
@@ -346,8 +347,8 @@ func TestV2CatalogAndSourceRoutes(t *testing.T) {
 		"stable":   {Name: "stable", Entries: []catalog.Entry{{Name: "v1"}, {Name: "v2", Replaces: "v1"}}},
 		"stable-2": {Name: "stable-2", Entries: []catalog.Entry{{Name: "v2", Replaces: "v1"}}},
 	}}
-	svc.snapshots[generated.ID] = &catalog.Snapshot{Source: generated, Packages: map[string]*catalog.Package{"gitops": packageData}}
-	svc.snapshots[private.ID] = &catalog.Snapshot{Source: private, Packages: map[string]*catalog.Package{"gitops": packageData}}
+	svc.snapshots[generated.ID] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Source: generated, Packages: map[string]*catalog.Package{"gitops": packageData}}
+	svc.snapshots[private.ID] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Source: private, Packages: map[string]*catalog.Package{"gitops": packageData}}
 	svc.statuses[generated.ID] = SourceStatus{Source: generated, Available: true, PackageCount: 1}
 	svc.statuses[private.ID] = SourceStatus{Source: private, Available: true, PackageCount: 1}
 
@@ -448,7 +449,7 @@ func TestV2SourceRoutesSupportEscapedSourceID(t *testing.T) {
 	}
 	source := catalog.Source{ID: "team/private", Image: ""}
 	svc := New(Config{Sources: []catalog.Source{source}, RefreshTokenFile: tokenFile})
-	svc.snapshots[source.ID] = &catalog.Snapshot{Source: source, Packages: map[string]*catalog.Package{
+	svc.snapshots[source.ID] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Source: source, Packages: map[string]*catalog.Package{
 		"gitops": {Name: "gitops", DefaultChannel: "stable", Bundles: map[string]*catalog.Bundle{}, Channels: map[string]*catalog.Channel{}},
 	}}
 
@@ -489,7 +490,7 @@ func TestCatalogRouteContracts(t *testing.T) {
 		"stable-2": {Name: "stable-2", Entries: []catalog.Entry{{Name: "v2", Replaces: "v1"}}},
 	}}
 	svc := New(Config{Sources: []catalog.Source{source}})
-	svc.snapshots[source.ID] = &catalog.Snapshot{Source: source, Packages: map[string]*catalog.Package{"gitops": packageData}}
+	svc.snapshots[source.ID] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Source: source, Packages: map[string]*catalog.Package{"gitops": packageData}}
 	svc.statuses[source.ID] = SourceStatus{Source: source, Available: true, PackageCount: 1}
 
 	for _, tc := range []struct {

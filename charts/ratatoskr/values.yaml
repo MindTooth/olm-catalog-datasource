@@ -16,6 +16,7 @@ config:
   debug: false
   refreshInterval: 6h
   refreshTimeout: 30m
+  maxSnapshotAge: 24h
   parseConcurrency: 2
   openshiftGraphURL: ""
   openshiftTimeout: 30s

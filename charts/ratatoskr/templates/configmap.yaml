@@ -19,6 +19,7 @@ data:
     debug: {{ .Values.config.debug }}
     refreshInterval: {{ .Values.config.refreshInterval | quote }}
     refreshTimeout: {{ .Values.config.refreshTimeout | quote }}
+    maxSnapshotAge: {{ .Values.config.maxSnapshotAge | quote }}
     parseConcurrency: {{ .Values.config.parseConcurrency }}
     openshiftTimeout: {{ .Values.config.openshiftTimeout | quote }}
     signaturePolicy: /etc/containers/{{ .Values.signaturePolicy.key }}

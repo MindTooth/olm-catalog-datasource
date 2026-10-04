@@ -133,7 +133,7 @@ func TestCatalogDatasourceUnavailable(t *testing.T) {
 
 func TestCatalogDatasourceLegitimateEmpty(t *testing.T) {
 	svc := New(Config{})
-	svc.snapshots["community-v4.22"] = &catalog.Snapshot{Packages: map[string]*catalog.Package{
+	svc.snapshots["community-v4.22"] = &catalog.Snapshot{GeneratedAt: time.Now().UTC(), Packages: map[string]*catalog.Package{
 		"example": {Name: "example", DefaultChannel: "stable", Channels: map[string]*catalog.Channel{"stable": {Name: "stable"}}, Bundles: map[string]*catalog.Bundle{}},
 	}}
 	for _, route := range []string{

@@ -24,6 +24,7 @@
         "debug": {"type": "boolean"},
         "refreshInterval": {"type": "string", "pattern": "^(?:0|[-+]?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|ms|s|m|h))+)$"},
         "refreshTimeout": {"type": "string", "pattern": "^(?:0|[-+]?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|ms|s|m|h))+)$"},
+        "maxSnapshotAge": {"type": "string", "pattern": "^(?:0|[-+]?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|ms|s|m|h))+)$"},
         "parseConcurrency": {"type": "integer", "minimum": 1},
         "openshiftGraphURL": {"type": "string"},
         "openshiftTimeout": {"type": "string", "pattern": "^(?:0|[-+]?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|ms|s|m|h))+)$"},

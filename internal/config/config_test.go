@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MindTooth/ratatoskr/internal/service"
 	"github.com/MindTooth/ratatoskr/pkg/catalog"
 )
 
@@ -22,6 +23,35 @@ func TestExampleConfig(t *testing.T) {
 	}
 	if _, err := Parse(data); err != nil {
 		t.Fatalf("config.example.yaml: %v", err)
+	}
+}
+
+func TestMaxSnapshotAge(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		want    time.Duration
+		invalid bool
+	}{
+		{want: service.DefaultMaxSnapshotAge},
+		{value: "12h", want: 12 * time.Hour},
+		{value: "0s", invalid: true},
+		{value: "-1h", invalid: true},
+		{value: "tomorrow", invalid: true},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			data := "channels: [v4.22]\n"
+			if tc.value != "" {
+				data += "maxSnapshotAge: " + tc.value + "\n"
+			}
+			cfg, err := Parse([]byte(data))
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "maxSnapshotAge") {
+					t.Fatalf("invalid freshness policy accepted: %v", err)
+				}
+			} else if err != nil || cfg.Service.MaxSnapshotAge != tc.want {
+				t.Fatalf("policy = %s, error = %v; want %s", cfg.Service.MaxSnapshotAge, err, tc.want)
+			}
+		})
 	}
 }
 

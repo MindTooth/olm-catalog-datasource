@@ -4,6 +4,8 @@ listenAddress: ":8080"
 # debug: true
 refreshInterval: 6h
 refreshTimeout: 30m
+# Maximum age of retained datasource results, including during upstream outages.
+maxSnapshotAge: 24h
 parseConcurrency: 2
 # OpenShift cluster-release lookups use the official update graph. Override the
 # URL only for testing or an explicitly trusted mirror.

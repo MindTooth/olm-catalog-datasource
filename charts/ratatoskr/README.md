@@ -42,6 +42,12 @@ The common catalog configuration is:
 This creates the standard Red Hat, certified, and community sources. Set
 `config.catalogs` to select a subset. `config.platform` defaults to
 `linux/amd64`; `config.sources` supports exact replacements and custom sources.
+
+`config.maxSnapshotAge` defaults to `24h` and must be positive. Failed datasource
+refreshes retain complete in-memory results through this age; missing or expired
+data returns `503`. Retention starts empty after a process restart. See the
+[freshness policy](../../docs/CONFIGURATION.md#settings) for response metadata
+and OpenShift lookup retention limits.
 See the project [configuration guide](../../docs/CONFIGURATION.md) for the
 normalization and precedence rules.
 
@@ -70,7 +76,7 @@ The chart version and application version are independent. The default image tag
 ## Operations
 
 - The Service remains internal by default. Set `route.enabled=true` only when external access is required.
-- `/healthz` is used for startup and liveness; `/readyz` gates Service endpoints until a catalog refresh succeeds.
+- `/healthz` is used for startup and liveness; `/readyz` requires at least one complete catalog snapshot within `config.maxSnapshotAge`.
 - `emptyDir` cache is the default. Enable persistence only when retaining registry layers across replacements is worth the storage cost.
 - NetworkPolicy intentionally controls ingress only. Standard Kubernetes policy cannot safely represent a registry hostname allow-list; enforce egress in the cluster network layer.
 
