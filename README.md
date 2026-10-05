@@ -121,6 +121,18 @@ If the installed release is not in the requested channel, the service returns
 `{"releases":[]}` with HTTP 200. This means there is no valid update path;
 it is not a catalog error.
 
+## Cluster subscription discovery
+
+Run `ratatoskr discover` inside a pod to print OLM subscription channel heads
+as JSON. The pod service account needs cluster-wide `list` access to
+`subscriptions.operators.coreos.com` and
+`packagemanifests.packages.operators.coreos.com`.
+
+Discovery matches the package and CatalogSource name and namespace. An omitted
+subscription channel uses the package's default channel; a package with one
+channel can use that channel as its implicit default. Subscriptions with an
+empty catalog namespace or unresolved channel versions are omitted.
+
 ## Renovate
 
 Every Renovate configuration using Ratatoskr must include a fail-safe host rule
