@@ -40,7 +40,7 @@ before making a package request:
 curl --fail-with-body http://localhost:8080/readyz
 ```
 
-`200 OK` means at least one catalog has a complete snapshot within `maxSnapshotAge`.
+`200 OK` means every configured catalog has a complete snapshot within `maxSnapshotAge`.
 
 ## Conventions
 
@@ -169,8 +169,13 @@ curl --fail-with-body http://localhost:8080/healthz
 ### `GET /readyz`
 
 Use this for a Kubernetes readiness probe or before querying package data. It
-returns `200` while at least one catalog has a complete snapshot within
-`maxSnapshotAge`, otherwise `503`.
+returns `200` only when at least one catalog is configured and every configured
+catalog has a complete snapshot within `maxSnapshotAge`, otherwise `503`. A
+failed refresh retains readiness while the previous complete data is acceptable.
+Missing or expired data for any configured catalog removes this instance from
+Service endpoints; `/healthz` still succeeds. This check does not prefetch or
+guarantee availability for arbitrary OpenShift release queries, which remain
+subject to their own exact-query retention and `503` failure semantics.
 
 ```fish
 curl --fail-with-body http://localhost:8080/readyz

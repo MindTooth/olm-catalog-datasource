@@ -1,3 +1,6 @@
+{{- if and .Values.persistence.enabled (gt (int .Values.replicaCount) 1) }}
+{{- fail "persistence.enabled requires replicaCount=1; multi-replica deployments use per-pod emptyDir caches" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,6 +31,27 @@ spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       terminationGracePeriodSeconds: 30
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- if .Values.affinity }}
+        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "ratatoskr.selectorLabels" . | nindent 20 }}
+        {{- end }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -68,7 +92,7 @@ spec:
             httpGet: {path: /readyz, port: http}
             periodSeconds: 5
             timeoutSeconds: 1
-            failureThreshold: 3
+            failureThreshold: 1
           livenessProbe:
             httpGet: {path: /healthz, port: http}
             periodSeconds: 10

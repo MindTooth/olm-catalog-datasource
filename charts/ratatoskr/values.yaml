@@ -1,4 +1,4 @@
-replicaCount: 1
+replicaCount: 2
 image:
   repository: ghcr.io/mindtooth/ratatoskr
   tag: ""
@@ -40,6 +40,7 @@ refreshToken:
   existingSecret: ""
   key: token
 persistence:
+  # Registry cache only; supported with replicaCount=1 and pdb.enabled=false.
   enabled: false
   existingClaim: ""
   size: 10Gi
@@ -63,10 +64,12 @@ networkPolicy:
   enabled: false
   ingress: []
 pdb:
-  enabled: false
+  enabled: true
   maxUnavailable: 1
 podAnnotations: {}
 podLabels: {}
 nodeSelector: {}
 tolerations: []
+# Empty uses preferred pod anti-affinity across nodes for this release.
+# A nonempty affinity replaces that default.
 affinity: {}

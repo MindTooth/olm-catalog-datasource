@@ -29,7 +29,8 @@ func TestResponseRecorderUsesFirstStatusAndCountsBytes(t *testing.T) {
 }
 
 func TestHealthAndReadinessEndpoints(t *testing.T) {
-	svc := New(Config{})
+	source := catalog.Source{ID: "catalog", Image: "registry.example/catalog"}
+	svc := New(Config{Sources: []catalog.Source{source}})
 
 	for _, test := range []struct {
 		path string
@@ -45,7 +46,7 @@ func TestHealthAndReadinessEndpoints(t *testing.T) {
 		}
 	}
 
-	svc.snapshots["catalog"] = &catalog.Snapshot{GeneratedAt: time.Now().UTC()}
+	svc.snapshots[source.ID] = &catalog.Snapshot{Source: source, GeneratedAt: time.Now().UTC()}
 	res := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	if res.Code != http.StatusOK {

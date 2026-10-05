@@ -175,7 +175,7 @@ curl --fail-with-body http://localhost:8080/readyz
 ```
 
 `/healthz` confirms that the process is running. `/readyz` returns `503` until
-at least one catalog finishes loading, then returns `200`.
+every configured catalog has loaded a complete snapshot within `maxSnapshotAge`.
 
 You can trigger an asynchronous refresh after changing external registry state
 or when testing a catalog update. It is accepted immediately; inspect the
@@ -318,7 +318,7 @@ spec:
           port: http
         periodSeconds: 5
         timeoutSeconds: 1
-        failureThreshold: 3
+        failureThreshold: 1
       livenessProbe:
         httpGet:
           path: /healthz
@@ -372,18 +372,21 @@ escalation, and dropped capabilities are explicit defense-in-depth settings.
 
 The probes intentionally have different meanings. The startup and liveness
 probes use `/healthz`, which succeeds whenever the HTTP listener is serving.
-The readiness probe uses `/readyz`, which stays `503` until at least one catalog
-has refreshed successfully. Kubernetes therefore keeps the pod out of Service
-endpoints while an initial catalog pull is in progress, without killing it for a
+The readiness probe uses `/readyz`, which stays `503` until every configured
+catalog has a complete snapshot within `maxSnapshotAge`. Kubernetes therefore
+keeps the pod out of Service endpoints while an initial catalog pull is in
+progress, without killing it for a
 slow registry or a transient refresh failure. The startup probe allows up to one
 minute for the process to bind its listener before liveness and readiness checks
 begin.
 
-For a long-running production deployment, replace the cache `emptyDir` with a
-PVC if preserving layer cache across pod replacement is important. Use a
-Deployment rather than a bare Pod for lifecycle management. Restrict network
-egress to the catalog registries and limit inbound access to Renovate and
-approved operators.
+For production, use the [Helm chart](../charts/ratatoskr/README.md), which defaults
+to two replicas, a PodDisruptionBudget and preferred node anti-affinity. The bare
+Pod above is a minimal deployment example. Keep separate `emptyDir` caches for
+HA: last-known-good snapshots are process-local memory, and a shared PVC does
+not preserve them. The chart supports an optional registry-cache PVC only with
+one replica and the PDB disabled. Restrict network egress to the catalog
+registries and limit inbound access to Renovate and approved operators.
 
 ## Troubleshooting checklist
 

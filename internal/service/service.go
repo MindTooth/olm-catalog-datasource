@@ -449,16 +449,17 @@ func (s *Service) openshiftReleases(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) ready(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
-	ready := false
-	for _, snap := range s.snapshots {
-		if s.snapshotAcceptableLocked(snap.GeneratedAt) {
-			ready = true
+	ready := len(s.cfg.Sources) > 0
+	for _, source := range s.cfg.Sources {
+		snap := s.snapshots[source.ID]
+		if snap == nil || snap.Source != source || !s.snapshotAcceptableLocked(snap.GeneratedAt) {
+			ready = false
 			break
 		}
 	}
 	s.mu.RUnlock()
 	if !ready {
-		http.Error(w, "no catalog has an acceptable snapshot", http.StatusServiceUnavailable)
+		http.Error(w, "not all configured catalogs have acceptable snapshots", http.StatusServiceUnavailable)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

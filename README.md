@@ -286,6 +286,12 @@ The `Containerfile` builds a static binary and runs it without a shell or
 fixed root UID. Mount a writable `/tmp`, a cache volume through `OLM_CACHE_DIR`,
 the configuration file, and registry authentication or policy files as needed.
 
+Production Kubernetes/OpenShift deployments can use the [Helm chart](charts/ratatoskr/README.md),
+which defaults to two replicas, a PodDisruptionBudget and preferred node
+anti-affinity. Each replica retains complete snapshots independently; HA improves
+availability while HTTP failure semantics and Renovate's `abortOnError` rule
+protect datasource correctness.
+
 ## AI use
 
 AI tools may be used to assist development. AI-assisted changes are reviewed
