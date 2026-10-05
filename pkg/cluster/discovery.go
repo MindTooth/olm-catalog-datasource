@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	subscriptionGVR = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "subscriptions"}
+	subscriptionGVR    = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "subscriptions"}
 	packageManifestGVR = schema.GroupVersionResource{Group: "packages.operators.coreos.com", Version: "v1", Resource: "packagemanifests"}
 )
 
@@ -56,7 +56,7 @@ func Resolve(subscription *unstructured.Unstructured, manifests []unstructured.U
 	source, _, _ := unstructured.NestedString(subscription.Object, "spec", "source")
 	sourceNamespace, _, _ := unstructured.NestedString(subscription.Object, "spec", "sourceNamespace")
 	channel, _, _ := unstructured.NestedString(subscription.Object, "spec", "channel")
-	if packageName == "" || source == "" || channel == "" {
+	if packageName == "" || source == "" || sourceNamespace == "" {
 		return SubscriptionVersion{}, false
 	}
 
@@ -65,12 +65,20 @@ func Resolve(subscription *unstructured.Unstructured, manifests []unstructured.U
 		manifestPackage, _, _ := unstructured.NestedString(manifest.Object, "status", "packageName")
 		manifestSource, _, _ := unstructured.NestedString(manifest.Object, "status", "catalogSource")
 		manifestSourceNamespace, _, _ := unstructured.NestedString(manifest.Object, "status", "catalogSourceNamespace")
-		if manifestPackage != packageName || manifestSource != source || (sourceNamespace != "" && manifestSourceNamespace != sourceNamespace) {
+		if manifestPackage != packageName || manifestSource != source || manifestSourceNamespace != sourceNamespace {
 			continue
 		}
 
 		defaultChannel, _, _ := unstructured.NestedString(manifest.Object, "status", "defaultChannel")
 		channels, _, _ := unstructured.NestedSlice(manifest.Object, "status", "channels")
+		if defaultChannel == "" && len(channels) == 1 {
+			if onlyChannel, ok := channels[0].(map[string]any); ok {
+				defaultChannel, _, _ = unstructured.NestedString(onlyChannel, "name")
+			}
+		}
+		if channel == "" {
+			channel = defaultChannel
+		}
 		currentVersion := channelVersion(channels, channel)
 		defaultVersion := channelVersion(channels, defaultChannel)
 		if currentVersion == "" || defaultChannel == "" || defaultVersion == "" {
