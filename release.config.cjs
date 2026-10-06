@@ -29,6 +29,7 @@ module.exports = {
             { type: 'perf', section: 'Changed', hidden: false },
             { type: 'refactor', section: 'Changed', hidden: false },
             { type: 'revert', section: 'Changed', hidden: false },
+            { type: 'chore', scope: 'deps', section: 'Dependencies', hidden: false },
             { type: 'chore', hidden: true },
             { type: 'ci', hidden: true },
             { type: 'docs', hidden: true },
