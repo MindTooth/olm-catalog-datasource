@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2](https://github.com/MindTooth/ratatoskr/compare/v2.4.1...v2.4.2) (2026-10-08)
+
+### Fixed
+
+* **deps:** update kubernetes monorepo to v0.37.1 ([#98](https://github.com/MindTooth/ratatoskr/issues/98)) ([c7acd1c](https://github.com/MindTooth/ratatoskr/commit/c7acd1cdeca8968e7be4e1437bc1968c8a90d249))
+
 ## [2.4.1](https://github.com/MindTooth/ratatoskr/compare/v2.4.0...v2.4.1) (2026-10-08)
 
 ### Fixed
