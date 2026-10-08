@@ -20,8 +20,8 @@ module.exports = {
       {
         preset: 'conventionalcommits',
         presetConfig: {
-          // Map release-triggering Conventional Commit types to Keep a
-          // Changelog categories. Non-user-facing types remain hidden.
+          // Map release-triggering Conventional Commit types to release-note
+          // categories. Non-user-facing types remain hidden.
           types: [
             { type: 'feat', section: 'Added', hidden: false },
             { type: 'fix', section: 'Fixed', hidden: false },
@@ -37,20 +37,6 @@ module.exports = {
             { type: 'test', hidden: true },
           ],
         },
-      },
-    ],
-    [
-      '@semantic-release/changelog',
-      {
-        changelogTitle:
-          '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).',
-      },
-    ],
-    [
-      '@semantic-release/git',
-      {
-        assets: ['CHANGELOG.md'],
-        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
       },
     ],
     [

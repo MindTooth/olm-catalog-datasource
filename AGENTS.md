@@ -98,7 +98,7 @@ Do not claim a check passed unless it was actually run.
 
 ## Releases and commits
 
-Releases are managed by semantic-release from `master`; `CHANGELOG.md` is generated. The Node/pnpm files are release tooling only.
+Releases are managed by semantic-release from `master`; release notes are published to GitHub Releases. The Node/pnpm files are release tooling only.
 
 When changing release behavior, inspect `release.config.cjs`, `package.json`, and `.github/workflows/release.yaml` together.
 
