@@ -20,8 +20,6 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-    env:
-      COVERAGE_DIR: ${{ runner.temp }}/coverage
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,18 +39,20 @@ jobs:
 
       - name: Test production build configuration
         run: |
-          mkdir -p "$COVERAGE_DIR"
+          coverage_dir="$RUNNER_TEMP/coverage"
+          mkdir -p "$coverage_dir"
           go test -mod=readonly -count=1 -race -tags=containers_image_openpgp \
-            -covermode=atomic -coverpkg=./... -coverprofile="$COVERAGE_DIR/coverage.out" ./...
+            -covermode=atomic -coverpkg=./... -coverprofile="$coverage_dir/coverage.out" ./...
 
       - name: Report Go coverage
         run: |
-          go tool cover -func="$COVERAGE_DIR/coverage.out" > "$COVERAGE_DIR/coverage.txt"
-          go tool cover -html="$COVERAGE_DIR/coverage.out" -o "$COVERAGE_DIR/coverage.html"
+          coverage_dir="$RUNNER_TEMP/coverage"
+          go tool cover -func="$coverage_dir/coverage.out" > "$coverage_dir/coverage.txt"
+          go tool cover -html="$coverage_dir/coverage.out" -o "$coverage_dir/coverage.html"
           {
             echo '## Go coverage'
             echo
-            grep '^total:' "$COVERAGE_DIR/coverage.txt"
+            grep '^total:' "$coverage_dir/coverage.txt"
             echo
             printf -- '- Tested SHA: `%s`\n' "$(git rev-parse HEAD)"
             printf -- '- Toolchain: `%s`\n' "$(go version)"
@@ -63,7 +63,7 @@ jobs:
             echo '<details><summary>Function coverage</summary>'
             echo
             echo '```text'
-            cat "$COVERAGE_DIR/coverage.txt"
+            cat "$coverage_dir/coverage.txt"
             echo '```'
             echo
             echo '</details>'
@@ -74,9 +74,9 @@ jobs:
         with:
           name: go-coverage-${{ github.sha }}
           path: |
-            ${{ env.COVERAGE_DIR }}/coverage.out
-            ${{ env.COVERAGE_DIR }}/coverage.txt
-            ${{ env.COVERAGE_DIR }}/coverage.html
+            ${{ runner.temp }}/coverage/coverage.out
+            ${{ runner.temp }}/coverage/coverage.txt
+            ${{ runner.temp }}/coverage/coverage.html
           if-no-files-found: error
           retention-days: 14
 
