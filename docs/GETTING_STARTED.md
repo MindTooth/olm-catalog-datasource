@@ -12,7 +12,7 @@ For endpoint details and further `curl` examples, see the [HTTP API guide](API.m
 
 For local use:
 
-- Go 1.26 or newer;
+- the Go version specified in `go.mod`;
 - network access to the catalog registry, for example `registry.redhat.io`;
 - an account entitled to pull the desired Red Hat catalog image;
 - Podman or another OCI-compatible way to log in to the registry;
@@ -28,12 +28,47 @@ containers/image policy, and writable `/tmp` and cache directories.
 git clone https://github.com/MindTooth/ratatoskr.git
 cd ratatoskr
 go mod download
-go test ./...
+go mod verify
+go test -tags=containers_image_openpgp ./...
 ```
 
 `go mod download` verifies that the committed module definition can be
 resolved without rewriting it. Run this in a networked development or CI
 environment before building the container image.
+
+### Inspect test coverage
+
+With [just](https://just.systems/) installed, run `just coverage` (or
+`just test-race`) to run the production-tag race tests and generate native Go
+reports. Without just, run these commands in Bash or another POSIX shell:
+
+```sh
+(
+  set -e
+  coverage_dir="$(mktemp -d)"
+  printf 'Coverage output: %s\n' "$coverage_dir"
+  go test -mod=readonly -count=1 -race -tags=containers_image_openpgp \
+    -covermode=atomic -coverpkg=./... -coverprofile="$coverage_dir/coverage.out" ./...
+  go tool cover -func="$coverage_dir/coverage.out" > "$coverage_dir/coverage.txt"
+  go tool cover -html="$coverage_dir/coverage.out" -o "$coverage_dir/coverage.html"
+  cat "$coverage_dir/coverage.txt"
+)
+```
+
+Open `coverage.html` from the printed temporary directory to inspect untested
+code. The raw profile and function report are alongside it; reports stay outside
+the checkout. CI publishes the whole-module total and function report in the
+**Go test** job summary, with all three files in the run's **Artifacts** section
+for 14 days after successful tests. Cross-package coverage includes code executed
+by tests in other module packages, including the CLI in the overall total.
+Individual test-binary percentages are not per-package coverage reports.
+
+Coverage measures statement execution, not assertion quality or branch
+correctness. Test changed contracts and relevant error cases, reproduce bug
+fixes when practical, and cover concurrency or cancellation when affected.
+Prefer local fixtures/test doubles and explain material testing limitations in
+the PR. Use the PR diff and native reports for review; no numeric coverage
+threshold is enforced.
 
 ## 2. Authenticate to the catalog registry
 

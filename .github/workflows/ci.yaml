@@ -38,7 +38,47 @@ jobs:
           go mod verify
 
       - name: Test production build configuration
-        run: go test -race -tags=containers_image_openpgp -coverprofile=coverage.out ./...
+        run: |
+          coverage_dir="$RUNNER_TEMP/coverage"
+          mkdir -p "$coverage_dir"
+          go test -mod=readonly -count=1 -race -tags=containers_image_openpgp \
+            -covermode=atomic -coverpkg=./... -coverprofile="$coverage_dir/coverage.out" ./...
+
+      - name: Report Go coverage
+        run: |
+          coverage_dir="$RUNNER_TEMP/coverage"
+          go tool cover -func="$coverage_dir/coverage.out" > "$coverage_dir/coverage.txt"
+          go tool cover -html="$coverage_dir/coverage.out" -o "$coverage_dir/coverage.html"
+          {
+            echo '## Go coverage'
+            echo
+            grep '^total:' "$coverage_dir/coverage.txt"
+            echo
+            printf -- '- Tested SHA: `%s`\n' "$(git rev-parse HEAD)"
+            printf -- '- Toolchain: `%s`\n' "$(go version)"
+            printf -- '- Platform: `%s/%s`\n' "$(go env GOOS)" "$(go env GOARCH)"
+            echo '- Build tag: `containers_image_openpgp`'
+            echo '- Scope: all module packages (`./...`), including the CLI; atomic cross-package coverage with race detection.'
+            echo
+            echo '<details><summary>Function coverage</summary>'
+            echo
+            echo '```text'
+            cat "$coverage_dir/coverage.txt"
+            echo '```'
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Go coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: go-coverage-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/coverage/coverage.out
+            ${{ runner.temp }}/coverage/coverage.txt
+            ${{ runner.temp }}/coverage/coverage.html
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Build production binary
         run: CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/ratatoskr ./cmd/ratatoskr
