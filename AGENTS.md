@@ -51,7 +51,7 @@ Use the Go version in `go.mod`. Run `gofmt`. Follow `godoclint` for exported dec
 
 Prefer deterministic behavior, `context.Context` for cancellable I/O, and `%w` for wrapped errors. Avoid new dependencies unless they clearly improve on the standard library or existing dependencies.
 
-For bug fixes, add a regression test when practical. Prefer local fixtures, `httptest`, `fstest`, or equivalent test doubles over live external services.
+Test changed behavior with assertions for its contract and relevant error cases; cover concurrency and cancellation when affected. For bug fixes, reproduce the original failure when practical. Prefer local fixtures, `httptest`, `fstest`, or equivalent test doubles over live external services. Explain material testing limitations in the PR.
 
 Treat exported `pkg/catalog` APIs, CLI flags, HTTP/JSON behavior, config keys/defaults, Helm values, and Renovate datasource semantics as compatibility surfaces. Update tests and docs when changing them.
 
@@ -66,12 +66,20 @@ Go:
 ```sh
 go mod download
 go mod verify
-go test -race -tags=containers_image_openpgp -coverprofile=coverage.out ./...
+coverage_dir="$(mktemp -d)"
+go test -mod=readonly -count=1 -race -tags=containers_image_openpgp \
+  -covermode=atomic -coverpkg=./... -coverprofile="$coverage_dir/coverage.out" ./...
+go tool cover -func="$coverage_dir/coverage.out" > "$coverage_dir/coverage.txt"
+go tool cover -html="$coverage_dir/coverage.out" -o "$coverage_dir/coverage.html"
+cat "$coverage_dir/coverage.txt"
+printf 'Coverage output: %s\n' "$coverage_dir"
 CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/ratatoskr ./cmd/ratatoskr
 golangci-lint run --build-tags=containers_image_openpgp
 ```
 
 Do not omit `containers_image_openpgp` when validating the production build.
+
+`just coverage` (also `just test-race`) runs the same coverage checks. CI publishes native Go reports in its summary and a 14-day artifact. Coverage includes the CLI and measures statement execution, not assertion quality or branch correctness. Review changed behavior using the PR diff and reports; there is no numeric coverage gate or custom coverage tooling.
 
 Helm:
 

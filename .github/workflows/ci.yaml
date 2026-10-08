@@ -20,6 +20,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      COVERAGE_DIR: ${{ runner.temp }}/coverage
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,7 +40,45 @@ jobs:
           go mod verify
 
       - name: Test production build configuration
-        run: go test -race -tags=containers_image_openpgp -coverprofile=coverage.out ./...
+        run: |
+          mkdir -p "$COVERAGE_DIR"
+          go test -mod=readonly -count=1 -race -tags=containers_image_openpgp \
+            -covermode=atomic -coverpkg=./... -coverprofile="$COVERAGE_DIR/coverage.out" ./...
+
+      - name: Report Go coverage
+        run: |
+          go tool cover -func="$COVERAGE_DIR/coverage.out" > "$COVERAGE_DIR/coverage.txt"
+          go tool cover -html="$COVERAGE_DIR/coverage.out" -o "$COVERAGE_DIR/coverage.html"
+          {
+            echo '## Go coverage'
+            echo
+            grep '^total:' "$COVERAGE_DIR/coverage.txt"
+            echo
+            printf -- '- Tested SHA: `%s`\n' "$(git rev-parse HEAD)"
+            printf -- '- Toolchain: `%s`\n' "$(go version)"
+            printf -- '- Platform: `%s/%s`\n' "$(go env GOOS)" "$(go env GOARCH)"
+            echo '- Build tag: `containers_image_openpgp`'
+            echo '- Scope: all module packages (`./...`), including the CLI; atomic cross-package coverage with race detection.'
+            echo
+            echo '<details><summary>Function coverage</summary>'
+            echo
+            echo '```text'
+            cat "$COVERAGE_DIR/coverage.txt"
+            echo '```'
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Go coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: go-coverage-${{ github.sha }}
+          path: |
+            ${{ env.COVERAGE_DIR }}/coverage.out
+            ${{ env.COVERAGE_DIR }}/coverage.txt
+            ${{ env.COVERAGE_DIR }}/coverage.html
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Build production binary
         run: CGO_ENABLED=0 go build -tags=containers_image_openpgp -trimpath -o /tmp/ratatoskr ./cmd/ratatoskr
