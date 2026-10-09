@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -31,17 +33,79 @@ func TestParsePlatform(t *testing.T) {
 	}
 }
 
-func TestSafeJoinUsesImageRootForAbsolutePaths(t *testing.T) {
-	root := t.TempDir()
-	got, err := safeJoin(root, "/configs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := filepath.Join(root, "configs"); got != want {
-		t.Fatalf("safeJoin() = %q, want %q", got, want)
-	}
-	if _, err := safeJoin(root, "/../outside"); err == nil {
-		t.Fatal("safeJoin() accepted a path traversal")
+func TestReadExtracted(t *testing.T) {
+	const metadata = `{"schema":"olm.package","name":"example","defaultChannel":"stable"}
+{"schema":"olm.channel","package":"example","name":"stable","entries":[]}`
+	for _, tc := range []struct {
+		name    string
+		configs string
+		files   []string
+		links   map[string]string
+		wantErr bool
+	}{
+		{name: "absolute image path", configs: "/configs", files: []string{"configs/catalog.json"}},
+		{name: "relative image path", configs: "configs", files: []string{"configs/catalog.json"}},
+		{name: "config directory link within image", configs: "/configs", files: []string{"data/catalog.json"}, links: map[string]string{"configs": "data"}},
+		{name: "ancestor link within image", configs: "/catalog/configs", files: []string{"data/configs/catalog.json"}, links: map[string]string{"catalog": "data"}},
+		{name: "file link within image", configs: "/configs", files: []string{"data/catalog.json"}, links: map[string]string{"configs/catalog.json": "../data/catalog.json"}},
+		{name: "config directory escape", configs: "/configs", links: map[string]string{"configs": "../outside"}, wantErr: true},
+		{name: "ancestor directory escape", configs: "/catalog/configs", links: map[string]string{"catalog": "../outside"}, wantErr: true},
+		{name: "catalog file escape", configs: "/configs", links: map[string]string{"configs/catalog.json": "../../outside/catalog.json"}, wantErr: true},
+		{name: "nested catalog file escape", configs: "/configs", links: map[string]string{"configs/operator/catalog.json": "../../../outside/catalog.json"}, wantErr: true},
+		{name: "absolute link escape", configs: "/configs", links: map[string]string{"configs": "$outside"}, wantErr: true},
+		{name: "traversal", configs: "/../outside", wantErr: true},
+		{name: "empty path", wantErr: true},
+		{name: "image root", configs: "/", wantErr: true},
+		{name: "missing directory", configs: "/missing", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := t.TempDir()
+			root := filepath.Join(parent, "image")
+			outside := filepath.Join(parent, "outside")
+			write := func(name string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(name), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(name, []byte(metadata), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Mkdir(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			write(filepath.Join(outside, "catalog.json"))
+			write(filepath.Join(outside, "configs", "catalog.json"))
+			for _, name := range tc.files {
+				write(filepath.Join(root, name))
+			}
+			for name, target := range tc.links {
+				link := filepath.Join(root, name)
+				if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if target == "$outside" {
+					target = outside
+				}
+				if err := os.Symlink(target, link); err != nil {
+					t.Fatal(err)
+				}
+			}
+			source := Source{ID: "local", Image: "example/catalog"}
+			snapshot, err := (Reader{}).readExtracted(context.Background(), source, root, tc.configs)
+			if tc.wantErr {
+				if err == nil || snapshot != nil {
+					t.Fatalf("readExtracted() = (%#v, %v), want nil snapshot and error", snapshot, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if snapshot.Source != source || len(snapshot.Packages) != 1 || snapshot.Packages["example"] == nil || snapshot.Packages["example"].Channels["stable"] == nil {
+				t.Fatalf("unexpected snapshot: %#v", snapshot)
+			}
+		})
 	}
 }
 

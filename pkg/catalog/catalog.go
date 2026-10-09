@@ -120,17 +120,33 @@ func (r Reader) Read(ctx context.Context, source Source) (*Snapshot, error) {
 	if err := registry.Unpack(ctx, ref, root); err != nil {
 		return nil, fmt.Errorf("unpack %q: %w", source.Image, err)
 	}
-	configRoot, err := safeJoin(root, configs)
+	return r.readExtracted(ctx, source, root, configs)
+}
+
+// readExtracted confines config resolution and file reads to the unpacked image.
+func (r Reader) readExtracted(ctx context.Context, source Source, root, configs string) (*Snapshot, error) {
+	// Absolute-looking config paths are relative to the image filesystem.
+	configPath := filepath.Clean(strings.TrimLeft(configs, "/"))
+	if configPath == "." || !filepath.IsLocal(configPath) {
+		return nil, fmt.Errorf("catalog config path: path traversal is not allowed")
+	}
+	imageRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("open extraction root: %w", err)
+	}
+	defer func() { _ = imageRoot.Close() }()
+	configFS, err := fs.Sub(imageRoot.FS(), filepath.ToSlash(configPath))
 	if err != nil {
 		return nil, fmt.Errorf("catalog config path: %w", err)
 	}
 
-	return r.ReadFS(ctx, source, os.DirFS(configRoot))
+	return r.ReadFS(ctx, source, configFS)
 }
 
 // ReadFS reads an unpacked file-based catalog rooted at configs. Source is
 // retained as snapshot metadata; it is not pulled or validated. Parsing uses
 // the same concurrency and normalization as Read, without registry access.
+// Callers are responsible for confining access through the supplied filesystem.
 func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -184,22 +200,6 @@ func parsePlatform(value string) (osChoice, architectureChoice, variantChoice st
 func ValidatePlatform(value string) error {
 	_, _, _, err := parsePlatform(value)
 	return err
-}
-
-// safeJoin resolves an OCI image path inside root. FBC images conventionally
-// use absolute-looking paths such as /configs; they are absolute only within
-// the image filesystem, not on the host.
-func safeJoin(root, imagePath string) (string, error) {
-	clean := filepath.Clean(strings.TrimLeft(imagePath, "/"))
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path traversal is not allowed")
-	}
-	joined := filepath.Join(root, clean)
-	rel, err := filepath.Rel(root, joined)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes extraction root")
-	}
-	return joined, nil
 }
 
 type rawPackage struct {
