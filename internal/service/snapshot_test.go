@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,10 +80,12 @@ func TestCatalogLastKnownGoodLifecycle(t *testing.T) {
 		bodies[route] = res.Body.String()
 	}
 	now = now.Add(30 * time.Minute)
-	for _, failure := range []string{"partial parse", "missing bundle", "timeout"} {
+	for _, failure := range []string{"partial parse", "missing bundle", "special file", "timeout"} {
 		t.Run(failure, func(t *testing.T) {
 			ctx := context.Background()
 			switch failure {
+			case "special file":
+				configs = fstest.MapFS{"catalog.json": {Mode: fs.ModeNamedPipe}}
 			case "partial parse":
 				configs = catalogFixture("1.2.0")
 				configs["catalog.json"].Data = append(configs["catalog.json"].Data, []byte("\n{")...)
@@ -99,6 +102,9 @@ func TestCatalogLastKnownGoodLifecycle(t *testing.T) {
 			}
 			if svc.snapshots[source.ID] != previous || svc.statuses[source.ID].LastSuccess != generatedAt {
 				t.Fatal("failed refresh replaced data or renewed its age")
+			}
+			if len(svc.refreshSem) != 0 {
+				t.Fatal("failed refresh retained the shared refresh slot")
 			}
 			for _, route := range routes {
 				res := getSnapshotResponse(svc, route)
