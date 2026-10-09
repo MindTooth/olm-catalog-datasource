@@ -262,6 +262,9 @@ versions, err := pkg.VersionUpdates(catalog.UpdateRequest{
 
 For unpacked FBC data, use `reader.ReadFS(ctx, catalog.Source{ID: "local"},
 os.DirFS("/path/to/configs"))`. Both entry points use the same parser.
+`Read` confines config paths and file reads to the extracted image filesystem,
+including relative symlinks within that root. `ReadFS` uses the supplied
+filesystem's access rules; `os.DirFS` does not confine symlink targets.
 `Snapshot.Packages` exposes channels and bundle metadata; `ChannelHeads` returns
 terminal bundles, and `ChannelReleases` resolves graph-valid channel transitions.
 `VersionUpdates` includes the current version and graph successors, defaults to
