@@ -107,3 +107,23 @@ func TestReadFSRejectsCanceledLookup(t *testing.T) {
 		t.Fatalf("ReadFS() = (%#v, %v), want nil snapshot and context.Canceled", snapshot, err)
 	}
 }
+
+func TestReadRejectsInvalidInputBeforeRegistryAccess(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, tc := range []struct {
+		name   string
+		ctx    context.Context
+		source catalog.Source
+	}{
+		{name: "canceled context", ctx: canceled, source: catalog.Source{ID: "catalog", Image: "example/catalog"}},
+		{name: "missing source ID", ctx: context.Background(), source: catalog.Source{Image: "example/catalog"}},
+		{name: "missing image", ctx: context.Background(), source: catalog.Source{ID: "catalog"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if snapshot, err := (catalog.Reader{}).Read(tc.ctx, tc.source); err == nil || snapshot != nil {
+				t.Fatalf("Read() = (%#v, %v), want nil snapshot and error", snapshot, err)
+			}
+		})
+	}
+}

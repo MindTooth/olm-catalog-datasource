@@ -97,6 +97,25 @@ func TestChannelLessUsesSemanticSuffix(t *testing.T) {
 	}
 }
 
+func TestBundleLessOrdersSemanticAndInvalidVersions(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		a, b *Bundle
+		want bool
+	}{
+		{name: "semantic versions", a: &Bundle{Version: "1.2.0"}, b: &Bundle{Version: "1.10.0"}, want: true},
+		{name: "invalid before valid", a: &Bundle{Version: "latest"}, b: &Bundle{Version: "1.0.0"}, want: true},
+		{name: "valid after invalid", a: &Bundle{Version: "1.0.0"}, b: &Bundle{Version: "latest"}},
+		{name: "invalid name tie break", a: &Bundle{Name: "a", Version: "latest"}, b: &Bundle{Name: "b", Version: "latest"}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := bundleLess(tc.a, tc.b); got != tc.want {
+				t.Fatalf("bundleLess(%+v, %+v) = %t, want %t", tc.a, tc.b, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestChannelUpdatesNextPrefersSameVersionedFamily(t *testing.T) {
 	p := &Package{Name: "strimzi", Bundles: map[string]*Bundle{
 		"v47":    {Name: "v47", Version: "0.47.0"},
