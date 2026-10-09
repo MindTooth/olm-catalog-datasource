@@ -66,6 +66,12 @@ func TestReadFSAndResolve(t *testing.T) {
 // partial snapshot.
 func TestReadFSErrors(t *testing.T) {
 	for name, configs := range map[string]fs.FS{
+		"nil filesystem":           nil,
+		"named pipe":               fstest.MapFS{"catalog.json": {Mode: fs.ModeNamedPipe}},
+		"socket":                   fstest.MapFS{"catalog.json": {Mode: fs.ModeSocket}},
+		"block device":             fstest.MapFS{"catalog.json": {Mode: fs.ModeDevice}},
+		"character device":         fstest.MapFS{"catalog.json": {Mode: fs.ModeDevice | fs.ModeCharDevice}},
+		"irregular file":           fstest.MapFS{"catalog.json": {Mode: fs.ModeIrregular}},
 		"malformed JSON":           fstest.MapFS{"catalog.json": {Data: []byte(`{`)}},
 		"invalid metadata":         fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"olm.package"}`)}},
 		"missing schema":           fstest.MapFS{"catalog.json": {Data: []byte(`{"name":"example"}`)}},

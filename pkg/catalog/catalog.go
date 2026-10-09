@@ -135,7 +135,8 @@ func (r Reader) readExtracted(ctx context.Context, source Source, root, configs 
 		return nil, fmt.Errorf("open extraction root: %w", err)
 	}
 	defer func() { _ = imageRoot.Close() }()
-	configFS, err := fs.Sub(imageRoot.FS(), filepath.ToSlash(configPath))
+	// Guard before Sub: fs.Sub lacks StatFS, so fs.Stat falls back to Open.
+	configFS, err := fs.Sub(regularCatalogFS{imageRoot.FS()}, filepath.ToSlash(configPath))
 	if err != nil {
 		return nil, fmt.Errorf("catalog config path: %w", err)
 	}
@@ -147,9 +148,13 @@ func (r Reader) readExtracted(ctx context.Context, source Source, root, configs 
 // retained as snapshot metadata; it is not pulled or validated. Parsing uses
 // the same concurrency and normalization as Read, without registry access.
 // Callers are responsible for confining access through the supplied filesystem.
+// Catalog files must be regular files; directories and links to regular files are allowed.
 func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if configs != nil {
+		configs = regularCatalogFS{configs}
 	}
 	s := &Snapshot{Source: source, GeneratedAt: time.Now().UTC(), Packages: map[string]*Package{}}
 	var mu sync.Mutex
@@ -185,6 +190,20 @@ func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snap
 		}
 	}
 	return s, nil
+}
+
+type regularCatalogFS struct{ fs.FS }
+
+func (f regularCatalogFS) Open(name string) (fs.File, error) {
+	// Stat follows confined symlinks without opening a FIFO or device for reading.
+	info, err := fs.Stat(f.FS, name)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() && !info.Mode().IsRegular() {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fmt.Errorf("catalog file is not regular: %s", info.Mode().Type())}
+	}
+	return f.FS.Open(name)
 }
 
 // parsePlatform splits an OCI platform into OS, architecture, and optional variant.
