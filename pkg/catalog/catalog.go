@@ -141,7 +141,7 @@ func (r Reader) readExtracted(ctx context.Context, source Source, root, configs 
 		return nil, fmt.Errorf("catalog config path: %w", err)
 	}
 
-	return r.ReadFS(ctx, source, configFS)
+	return r.readFS(ctx, source, configFS)
 }
 
 // ReadFS reads an unpacked file-based catalog rooted at configs. Source is
@@ -149,12 +149,18 @@ func (r Reader) readExtracted(ctx context.Context, source Source, root, configs 
 // the same concurrency and normalization as Read, without registry access.
 // Callers are responsible for confining access through the supplied filesystem.
 // Catalog files must be regular files; directories and links to regular files are allowed.
+// The filesystem must implement fs.StatFS and report metadata without opening files.
 func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snapshot, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
 	if configs != nil {
 		configs = regularCatalogFS{configs}
+	}
+	return r.readFS(ctx, source, configs)
+}
+
+// readFS parses a filesystem whose Open already rejects special files.
+func (r Reader) readFS(ctx context.Context, source Source, configs fs.FS) (*Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	s := &Snapshot{Source: source, GeneratedAt: time.Now().UTC(), Packages: map[string]*Package{}}
 	var mu sync.Mutex
@@ -195,8 +201,12 @@ func (r Reader) ReadFS(ctx context.Context, source Source, configs fs.FS) (*Snap
 type regularCatalogFS struct{ fs.FS }
 
 func (f regularCatalogFS) Open(name string) (fs.File, error) {
+	statter, ok := f.FS.(fs.StatFS)
+	if !ok {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fmt.Errorf("catalog filesystem must implement fs.StatFS")}
+	}
 	// Stat follows confined symlinks without opening a FIFO or device for reading.
-	info, err := fs.Stat(f.FS, name)
+	info, err := statter.Stat(name)
 	if err != nil {
 		return nil, err
 	}

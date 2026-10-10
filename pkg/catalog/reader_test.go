@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -102,6 +103,32 @@ func TestReadFSAllowsEmptyCatalog(t *testing.T) {
 	snapshot, err := (catalog.Reader{}).ReadFS(context.Background(), catalog.Source{}, configs)
 	if err != nil || snapshot == nil || len(snapshot.Packages) != 0 {
 		t.Fatalf("ReadFS() = (%#v, %v), want a successful empty catalog", snapshot, err)
+	}
+}
+
+type openOnlyFS struct {
+	fs.FS
+	opens int
+}
+
+func (f *openOnlyFS) Open(name string) (fs.File, error) {
+	f.opens++
+	return f.FS.Open(name)
+}
+
+func TestReadFSRequiresStatFS(t *testing.T) {
+	configs := fstest.MapFS{"catalog.json": {Data: []byte(`{"schema":"unknown"}`)}}
+	openOnly := &openOnlyFS{FS: configs}
+	snapshot, err := (catalog.Reader{}).ReadFS(context.Background(), catalog.Source{}, openOnly)
+	if snapshot != nil || err == nil || !strings.Contains(err.Error(), "catalog filesystem must implement fs.StatFS") {
+		t.Fatalf("ReadFS() = (%#v, %v), want nil snapshot and StatFS requirement error", snapshot, err)
+	}
+	if openOnly.opens != 0 {
+		t.Fatalf("Open called %d times, want rejection before any open", openOnly.opens)
+	}
+	withStat := struct{ fs.StatFS }{configs}
+	if snapshot, err := (catalog.Reader{}).ReadFS(context.Background(), catalog.Source{}, withStat); err != nil || snapshot == nil {
+		t.Fatalf("ReadFS() = (%#v, %v), want regular-file read with StatFS preserved", snapshot, err)
 	}
 }
 
