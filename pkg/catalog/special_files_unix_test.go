@@ -4,6 +4,7 @@ package catalog
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,18 +34,22 @@ func TestReadRejectsFIFO(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			for _, extracted := range []bool{false, true} {
-				t.Run(map[bool]string{false: "ReadFS", true: "readExtracted"}[extracted], func(t *testing.T) {
+			for _, method := range []string{"ReadFS", "ReadFS without StatFS", "readExtracted"} {
+				t.Run(method, func(t *testing.T) {
 					done := make(chan error, 1)
 					ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 					defer cancel()
 					go func() {
 						var snapshot *Snapshot
 						var err error
-						if extracted {
+						if method == "readExtracted" {
 							snapshot, err = (Reader{}).readExtracted(ctx, Source{}, root, "/configs")
 						} else {
-							snapshot, err = (Reader{}).ReadFS(ctx, Source{}, os.DirFS(configs))
+							configsFS := os.DirFS(configs)
+							if method == "ReadFS without StatFS" {
+								configsFS = struct{ fs.FS }{configsFS}
+							}
+							snapshot, err = (Reader{}).ReadFS(ctx, Source{}, configsFS)
 						}
 						if snapshot != nil {
 							done <- nil
@@ -54,7 +59,11 @@ func TestReadRejectsFIFO(t *testing.T) {
 					}()
 					select {
 					case err := <-done:
-						if err == nil || !strings.Contains(err.Error(), "catalog file is not regular") {
+						want := "catalog file is not regular"
+						if method == "ReadFS without StatFS" {
+							want = "catalog filesystem must implement fs.StatFS"
+						}
+						if err == nil || !strings.Contains(err.Error(), want) {
 							t.Fatalf("want special-file rejection, got %v", err)
 						}
 					case <-time.After(time.Second):
